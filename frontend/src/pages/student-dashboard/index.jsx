@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Header from '../../components/ui/Header';
 import QuickActionCard from './components/QuickActionCard';
 import MentorCard from './components/MentorCard';
@@ -9,21 +10,31 @@ import StatsCard from './components/StatsCard';
 import NotificationBanner from './components/NotificationBanner';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
+import { getEvents } from '../../services/eventService';
+import { getRecommendedMentors } from '../../services/mentorshipService';
+import { getAnnouncements } from '../../services/announcementService';
+import { getNotifications, getUnreadCount } from '../../services/notificationService';
 
 
 const StudentDashboard = () => {
+  const { user, userProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+  const [recommendedMentors, setRecommendedMentors] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Mock data
+  // Quick actions (static)
   const quickActions = [
     {
       title: "Find Mentors",
       description: "Connect with alumni and faculty who can guide your career journey",
       icon: "UserSearch",
       link: "/mentor-discovery",
-      badge: "3 new",
+      badge: "New",
       color: "primary"
     },
     {
@@ -31,7 +42,7 @@ const StudentDashboard = () => {
       description: "Discover upcoming workshops, career fairs, and networking events",
       icon: "Calendar",
       link: "/event-discovery",
-      badge: "12 upcoming",
+      badge: "Upcoming",
       color: "accent"
     },
     {
@@ -40,139 +51,110 @@ const StudentDashboard = () => {
       icon: "User",
       link: "/user-profile",
       color: "success"
+    },
+    {
+      title: "View Connections",
+      description: "Manage your professional network",
+      icon: "Users",
+      link: "/connections",
+      color: "info"
     }
   ];
 
-  const recommendedMentors = [
-    {
-      id: 1,
-      name: "Sarah Chen",
-      title: "Senior Software Engineer",
-      company: "Google",
-      avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-      graduationYear: 2018,
-      location: "San Francisco, CA",
-      matchScore: 94,
-      matchingSkills: ["React", "JavaScript", "Python", "Machine Learning", "Data Structures"],
-      rating: 4.9,
-      reviewCount: 23
-    },
-    {
-      id: 2,
-      name: "Michael Rodriguez",
-      title: "Product Manager",
-      company: "Microsoft",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-      graduationYear: 2016,
-      location: "Seattle, WA",
-      matchScore: 87,
-      matchingSkills: ["Product Strategy", "Agile", "Leadership", "Analytics"],
-      rating: 4.8,
-      reviewCount: 31
-    },
-    {
-      id: 3,
-      name: "Dr. Emily Watson",
-      title: "Research Scientist",
-      company: "Stanford University",
-      avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-      graduationYear: 2012,
-      location: "Palo Alto, CA",
-      matchScore: 82,
-      matchingSkills: ["Research", "Data Science", "Statistics", "Academic Writing"],
-      rating: 4.9,
-      reviewCount: 18
-    }
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user?.id) return;
 
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: "Tech Career Fair 2024",
-      description: "Meet with top tech companies and explore career opportunities in software engineering, data science, and product management.",
-      date: "2024-10-15T10:00:00Z",
-      location: "Student Union Building",
-      type: "career",
-      bannerImage: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop",
-      attendeeCount: 234,
-      capacity: 500,
-      tags: ["career", "networking", "tech"],
-      rsvpStatus: null
-    },
-    {
-      id: 2,
-      title: "AI & Machine Learning Workshop",
-      description: "Hands-on workshop covering the fundamentals of artificial intelligence and machine learning with practical coding exercises.",
-      date: "2024-10-12T14:00:00Z",
-      location: "Engineering Lab 205",
-      type: "workshop",
-      bannerImage: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=200&fit=crop",
-      attendeeCount: 45,
-      capacity: 60,
-      tags: ["AI", "workshop", "coding"],
-      rsvpStatus: "interested"
-    },
-    {
-      id: 3,
-      title: "Cultural Night: International Food Festival",
-      description: "Celebrate diversity with food, music, and performances from different cultures around the world.",
-      date: "2024-10-18T18:00:00Z",
-      location: "Campus Quad",
-      type: "cultural",
-      bannerImage: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400&h=200&fit=crop",
-      attendeeCount: 156,
-      capacity: 300,
-      tags: ["cultural", "food", "diversity"],
-      rsvpStatus: "going"
-    }
-  ];
+      setLoading(true);
+      try {
+        // Fetch recommended mentors
+        const { data: mentors } = await getRecommendedMentors(user.id);
+        setRecommendedMentors(mentors.slice(0, 3)); // Show top 3
 
-  const campusAnnouncements = [
-    {
-      id: 1,
-      title: "New Research Opportunities Available",
-      content: `We're excited to announce several new undergraduate research positions in our Computer Science and Engineering departments.\n\nThese positions offer hands-on experience with cutting-edge projects in:\n• Artificial Intelligence and Machine Learning\n• Cybersecurity and Privacy\n• Sustainable Computing Systems\n• Human-Computer Interaction\n\nApplications are due by October 20th. Don't miss this opportunity to work alongside faculty and graduate students on impactful research!`,
-      author: {
-        name: "Dr. Jennifer Adams",
-        role: "Faculty",
-        department: "Computer Science Department",
-        avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop&crop=face"
-      },
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      likeCount: 42,
-      isLiked: false,
-      priority: "high",
-      attachments: [
-        { name: "Research_Positions_2024.pdf", size: "245 KB" }
-      ],
-      comments: [
-        {
-          id: 1,
-          author: "Alex Thompson",
-          content: "This sounds amazing! When do applications open?",
-          timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
-          avatar: "/assets/images/no_image.png"
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: "Campus Wi-Fi Maintenance Scheduled",
-      content: `Please be aware that campus-wide Wi-Fi maintenance is scheduled for this weekend.\n\nMaintenance Window:\n• Saturday, October 7th: 2:00 AM - 6:00 AM\n• Sunday, October 8th: 2:00 AM - 4:00 AM\n\nDuring this time, you may experience intermittent connectivity issues. We recommend downloading any necessary materials beforehand.\n\nThank you for your patience as we work to improve our network infrastructure.`,
-      author: {
-        name: "Campus IT Services",
-        role: "Admin",
-        department: "Information Technology",
-        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
-      },
-      timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-      likeCount: 15,
-      isLiked: true,
-      priority: "normal",
-      comments: []
-    }
-  ];
+        // Fetch upcoming events
+        const { data: events } = await getEvents({ limit: 3 });
+        setUpcomingEvents(events);
 
+        // Fetch recent announcements
+        const { data: announcementsData } = await getAnnouncements(3);
+        setAnnouncements(announcementsData);
+
+        // Fetch notifications
+        const { data: notificationsData } = await getNotifications(user.id, 5);
+        setNotifications(notificationsData);
+
+        // Fetch unread count
+        const { count } = await getUnreadCount(user.id);
+        setUnreadCount(count);
+
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user?.id]);
+
+  const handleRequestMentorship = async (mentorId) => {
+    try {
+      const { createMentorshipRequest } = await import('../../services/mentorshipService');
+      const { data, error } = await createMentorshipRequest(user.id, mentorId, 'I would like to connect with you for mentorship.');
+      if (error) throw error;
+      alert('Mentorship request sent successfully!');
+    } catch (error) {
+      console.error('Failed to request mentorship:', error);
+      alert('Failed to send mentorship request. Please try again.');
+    }
+  };
+
+  const handleEventRSVP = async (eventId, status) => {
+    try {
+      const { updateEventRSVP } = await import('../../services/eventService');
+      const { data, error } = await updateEventRSVP(eventId, user.id, status);
+      if (error) throw error;
+      // Refresh events data
+      const { data: events } = await getEvents({ limit: 3 });
+      setUpcomingEvents(events);
+    } catch (error) {
+      console.error('RSVP failed:', error);
+      throw error;
+    }
+  };
+
+  const handleLikeAnnouncement = async (announcementId, isLiked) => {
+    try {
+      const { likeAnnouncement, unlikeAnnouncement } = await import('../../services/announcementService');
+      if (isLiked) {
+        await unlikeAnnouncement(announcementId, user.id);
+      } else {
+        await likeAnnouncement(announcementId, user.id);
+      }
+      // Refresh announcements
+      const { data: announcementsData } = await getAnnouncements(3);
+      setAnnouncements(announcementsData);
+    } catch (error) {
+      console.error('Like failed:', error);
+      throw error;
+    }
+  };
+
+  const handleCommentAnnouncement = async (announcementId, comment) => {
+    try {
+      const { addComment } = await import('../../services/announcementService');
+      const { data, error } = await addComment(announcementId, user.id, comment);
+      if (error) throw error;
+      // Refresh announcements
+      const { data: announcementsData } = await getAnnouncements(3);
+      setAnnouncements(announcementsData);
+    } catch (error) {
+      console.error('Comment failed:', error);
+      throw error;
+    }
+  };
+
+  // Mock stats for now - in real app, calculate from actual data
   const dashboardStats = [
     {
       title: "Active Connections",
@@ -207,87 +189,6 @@ const StudentDashboard = () => {
     }
   ];
 
-  const recentNotifications = [
-    {
-      id: 1,
-      type: "mentorship",
-      title: "Mentorship Request Accepted",
-      message: "Sarah Chen has accepted your mentorship request. You can now start messaging!",
-      time: "5 minutes ago",
-      actionRequired: true,
-      primaryAction: "Start Chat",
-      secondaryAction: "View Profile"
-    },
-    {
-      id: 2,
-      type: "event",
-      title: "Event Reminder",
-      message: "AI & Machine Learning Workshop starts in 2 hours. Don\'t forget to bring your laptop!",
-      time: "2 hours ago",
-      actionRequired: false
-    },
-    {
-      id: 3,
-      type: "connection",
-      title: "New Connection Request",
-      message: "John Smith wants to connect with you. Check out his profile!",
-      time: "1 day ago",
-      actionRequired: true,
-      primaryAction: "Accept",
-      secondaryAction: "View Profile"
-    }
-  ];
-
-  useEffect(() => {
-    setNotifications(recentNotifications);
-  }, []);
-
-  const handleRequestMentorship = async (mentorId) => {
-    try {
-      console.log('Requesting mentorship from mentor:', mentorId);
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      alert('Mentorship request sent successfully!');
-    } catch (error) {
-      console.error('Failed to request mentorship:', error);
-      alert('Failed to send mentorship request. Please try again.');
-    }
-  };
-
-  const handleEventRSVP = async (eventId, status) => {
-    try {
-      console.log('RSVP for event:', eventId, 'Status:', status);
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return Promise.resolve();
-    } catch (error) {
-      console.error('RSVP failed:', error);
-      throw error;
-    }
-  };
-
-  const handleLikeAnnouncement = async (announcementId, isLiked) => {
-    try {
-      console.log('Like announcement:', announcementId, 'Liked:', isLiked);
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-    } catch (error) {
-      console.error('Like failed:', error);
-      throw error;
-    }
-  };
-
-  const handleCommentAnnouncement = async (announcementId, comment) => {
-    try {
-      console.log('Comment on announcement:', announcementId, 'Comment:', comment);
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      console.error('Comment failed:', error);
-      throw error;
-    }
-  };
-
   const handleDismissNotification = (notificationId) => {
     setNotifications(prev => prev?.filter(n => n?.id !== notificationId));
   };
@@ -318,7 +219,7 @@ const StudentDashboard = () => {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
               <div>
                 <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Welcome back, Alex! 👋
+                  Welcome back, {userProfile?.full_name || 'Student'}! 👋
                 </h1>
                 <p className="text-muted-foreground">
                   Here's what's happening in your campus network today.
@@ -433,13 +334,27 @@ const StudentDashboard = () => {
                   </Link>
                 </div>
                 <div className="space-y-4">
-                  {recommendedMentors?.slice(0, 2)?.map((mentor) => (
-                    <MentorCard
-                      key={mentor?.id}
-                      mentor={mentor}
-                      onRequestMentorship={handleRequestMentorship}
-                    />
-                  ))}
+                  {loading ? (
+                    <div className="space-y-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="bg-muted h-32 rounded-lg"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : recommendedMentors?.length > 0 ? (
+                    recommendedMentors?.slice(0, 2)?.map((mentor) => (
+                      <MentorCard
+                        key={mentor?.id}
+                        mentor={mentor}
+                        onRequestMentorship={handleRequestMentorship}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No recommended mentors available at the moment.
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -454,13 +369,27 @@ const StudentDashboard = () => {
                   </Link>
                 </div>
                 <div className="space-y-4">
-                  {upcomingEvents?.slice(0, 2)?.map((event) => (
-                    <EventCard
-                      key={event?.id}
-                      event={event}
-                      onRSVP={handleEventRSVP}
-                    />
-                  ))}
+                  {loading ? (
+                    <div className="space-y-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="bg-muted h-40 rounded-lg"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : upcomingEvents?.length > 0 ? (
+                    upcomingEvents?.slice(0, 2)?.map((event) => (
+                      <EventCard
+                        key={event?.id}
+                        event={event}
+                        onRSVP={handleEventRSVP}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No upcoming events available.
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
@@ -479,13 +408,27 @@ const StudentDashboard = () => {
                 </Link>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filteredMentors?.map((mentor) => (
-                  <MentorCard
-                    key={mentor?.id}
-                    mentor={mentor}
-                    onRequestMentorship={handleRequestMentorship}
-                  />
-                ))}
+                {loading ? (
+                  <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="bg-muted h-48 rounded-lg"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredMentors?.length > 0 ? (
+                  filteredMentors?.map((mentor) => (
+                    <MentorCard
+                      key={mentor?.id}
+                      mentor={mentor}
+                      onRequestMentorship={handleRequestMentorship}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-12 text-muted-foreground">
+                    No mentors found matching your search.
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -503,13 +446,27 @@ const StudentDashboard = () => {
                 </Link>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredEvents?.map((event) => (
-                  <EventCard
-                    key={event?.id}
-                    event={event}
-                    onRSVP={handleEventRSVP}
-                  />
-                ))}
+                {loading ? (
+                  <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="bg-muted h-64 rounded-lg"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredEvents?.length > 0 ? (
+                  filteredEvents?.map((event) => (
+                    <EventCard
+                      key={event?.id}
+                      event={event}
+                      onRSVP={handleEventRSVP}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-12 text-muted-foreground">
+                    No events found matching your search.
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -523,14 +480,28 @@ const StudentDashboard = () => {
                 </Button>
               </div>
               <div className="max-w-2xl mx-auto space-y-6">
-                {campusAnnouncements?.map((announcement) => (
-                  <AnnouncementCard
-                    key={announcement?.id}
-                    announcement={announcement}
-                    onLike={handleLikeAnnouncement}
-                    onComment={handleCommentAnnouncement}
-                  />
-                ))}
+                {loading ? (
+                  <div className="space-y-6">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="bg-muted h-80 rounded-lg"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : announcements?.length > 0 ? (
+                  announcements?.map((announcement) => (
+                    <AnnouncementCard
+                      key={announcement?.id}
+                      announcement={announcement}
+                      onLike={handleLikeAnnouncement}
+                      onComment={handleCommentAnnouncement}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No announcements available at the moment.
+                  </div>
+                )}
               </div>
             </section>
           )}

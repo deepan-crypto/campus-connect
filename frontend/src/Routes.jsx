@@ -2,7 +2,10 @@ import React from "react";
 import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import Login from './pages/auth/Login';
+import Signup from './pages/auth/Signup';
 import AlumniDashboard from './pages/alumni-dashboard';
 import Messaging from './pages/messaging';
 import MentorDiscovery from './pages/mentor-discovery';
@@ -16,14 +19,15 @@ const Routes = () => {
       <ErrorBoundary>
       <ScrollToTop />
       <RouterRoutes>
-        {/* Define your route here */}
-        <Route path="/" element={<EventDiscovery />} />
-        <Route path="/alumni-dashboard" element={<AlumniDashboard />} />
-        <Route path="/messaging" element={<Messaging />} />
-        <Route path="/mentor-discovery" element={<MentorDiscovery />} />
-        <Route path="/student-dashboard" element={<StudentDashboard />} />
-        <Route path="/user-profile" element={<UserProfile />} />
-        <Route path="/event-discovery" element={<EventDiscovery />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/" element={<ProtectedRoute><EventDiscovery /></ProtectedRoute>} />
+        <Route path="/alumni-dashboard" element={<ProtectedRoute><AlumniDashboard /></ProtectedRoute>} />
+        <Route path="/messaging" element={<ProtectedRoute><Messaging /></ProtectedRoute>} />
+        <Route path="/mentor-discovery" element={<ProtectedRoute><MentorDiscovery /></ProtectedRoute>} />
+        <Route path="/student-dashboard" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+        <Route path="/user-profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+        <Route path="/event-discovery" element={<ProtectedRoute><EventDiscovery /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </ErrorBoundary>

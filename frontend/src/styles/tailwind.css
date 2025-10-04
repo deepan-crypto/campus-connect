@@ -4,6 +4,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .dropdown-position {
+    top: 100%;
+    margin-top: 0.25rem;
+  }
+  
+  .dropdown-position-up {
+    bottom: 100%;
+    margin-bottom: 0.25rem;
+  }
+}
+
 @layer base {
   :root {
     /* Core Colors */

@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 import Image from '../../../components/AppImage';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
 const EventCard = ({ event, onRSVP }) => {
-  const [rsvpStatus, setRsvpStatus] = useState(event?.rsvpStatus || null);
+  const { user } = useAuth();
+  const [rsvpStatus, setRsvpStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Find user's RSVP status from the event_rsvps array
+    const userRsvp = event?.event_rsvps?.find(rsvp => rsvp.user_id === user?.id);
+    setRsvpStatus(userRsvp?.status || null);
+  }, [event?.event_rsvps, user?.id]);
 
   const handleRSVP = async (status) => {
     setIsLoading(true);
@@ -50,13 +58,15 @@ const EventCard = ({ event, onRSVP }) => {
     return 'outline';
   };
 
-  const { day, month, time } = formatDate(event?.date);
+  const { day, month, time } = formatDate(event?.start_date);
+
+  const attendeeCount = event?.event_rsvps?.filter(rsvp => rsvp.status === 'going')?.length || 0;
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-elevation-2 transition-all duration-200">
       <div className="relative h-48 overflow-hidden">
         <Image
-          src={event?.bannerImage}
+          src={event?.banner_image_url || '/assets/images/no_image.png'}
           alt={event?.title}
           className="w-full h-full object-cover"
         />
@@ -65,8 +75,8 @@ const EventCard = ({ event, onRSVP }) => {
           <div className="text-xs text-muted-foreground uppercase">{month}</div>
         </div>
         <div className="absolute top-4 right-4">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEventTypeColor(event?.type)}`}>
-            {event?.type}
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEventTypeColor(event?.event_type)}`}>
+            {event?.event_type}
           </span>
         </div>
       </div>
@@ -96,9 +106,13 @@ const EventCard = ({ event, onRSVP }) => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <Icon name="Users" size={14} />
-            <span>{event?.attendeeCount} attending</span>
-            <span>•</span>
-            <span>{event?.capacity - event?.attendeeCount} spots left</span>
+            <span>{attendeeCount} attending</span>
+            {event?.capacity && (
+              <>
+                <span>•</span>
+                <span>{event.capacity - attendeeCount} spots left</span>
+              </>
+            )}
           </div>
           <div className="flex items-center space-x-1">
             {event?.tags?.slice(0, 2)?.map((tag, index) => (

@@ -22,8 +22,8 @@ const MentorCard = ({ mentor, onRequestMentorship }) => {
       <div className="flex items-start space-x-4">
         <div className="relative flex-shrink-0">
           <Image
-            src={mentor?.avatar}
-            alt={mentor?.name}
+            src={mentor?.avatar_url || '/assets/images/no_image.png'}
+            alt={mentor?.full_name}
             className="w-16 h-16 rounded-full object-cover"
           />
           <div className={`absolute -top-1 -right-1 px-2 py-1 rounded-full text-xs font-medium ${getMatchScoreBg(mentor?.matchScore)} ${getMatchScoreColor(mentor?.matchScore)}`}>
@@ -34,20 +34,16 @@ const MentorCard = ({ mentor, onRequestMentorship }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between mb-2">
             <div>
-              <h3 className="text-lg font-semibold text-card-foreground truncate">{mentor?.name}</h3>
-              <p className="text-muted-foreground text-sm">{mentor?.title}</p>
-              <p className="text-muted-foreground text-xs">{mentor?.company}</p>
+              <h3 className="text-lg font-semibold text-card-foreground truncate">{mentor?.full_name}</h3>
+              <p className="text-muted-foreground text-sm">{mentor?.role}</p>
+              <p className="text-muted-foreground text-xs">{mentor?.current_employer}</p>
             </div>
           </div>
           
           <div className="flex items-center space-x-4 text-xs text-muted-foreground mb-3">
             <div className="flex items-center space-x-1">
               <Icon name="GraduationCap" size={14} />
-              <span>Class of {mentor?.graduationYear}</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Icon name="MapPin" size={14} />
-              <span>{mentor?.location}</span>
+              <span>Class of {mentor?.graduation_year}</span>
             </div>
           </div>
           
@@ -69,11 +65,11 @@ const MentorCard = ({ mentor, onRequestMentorship }) => {
           
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-              <Icon name="Star" size={14} className="text-accent" />
-              <span>{mentor?.rating} ({mentor?.reviewCount} reviews)</span>
+              <Icon name="Briefcase" size={14} />
+              <span>{mentor?.department}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Link to={`/mentor-discovery?id=${mentor?.id}`}>
+              <Link to={`/user-profile?id=${mentor?.id}`}>
                 <Button variant="outline" size="sm">
                   View Profile
                 </Button>

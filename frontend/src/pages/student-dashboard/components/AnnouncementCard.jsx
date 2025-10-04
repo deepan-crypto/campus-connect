@@ -4,11 +4,11 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
 const AnnouncementCard = ({ announcement, onLike, onComment }) => {
-  const [isLiked, setIsLiked] = useState(announcement?.isLiked || false);
+  const [isLiked, setIsLiked] = useState(false); // Will be determined by checking user's likes
   const [likeCount, setLikeCount] = useState(announcement?.likeCount || 0);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
-  const [comments, setComments] = useState(announcement?.comments || []);
+  const [comments, setComments] = useState(announcement?.announcement_comments || []);
 
   const handleLike = async () => {
     try {
@@ -69,19 +69,18 @@ const AnnouncementCard = ({ announcement, onLike, onComment }) => {
       {/* Header */}
       <div className="flex items-start space-x-3 mb-4">
         <Image
-          src={announcement?.author?.avatar}
-          alt={announcement?.author?.name}
+          src={announcement?.author?.avatar_url || '/assets/images/no_image.png'}
+          alt={announcement?.author?.full_name}
           className="w-12 h-12 rounded-full object-cover flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2 mb-1">
-            <h4 className="font-semibold text-card-foreground">{announcement?.author?.name}</h4>
+            <h4 className="font-semibold text-card-foreground">{announcement?.author?.full_name}</h4>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getAuthorRoleColor(announcement?.author?.role)}`}>
               {announcement?.author?.role}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">{announcement?.author?.department}</p>
-          <p className="text-xs text-muted-foreground">{formatTimeAgo(announcement?.timestamp)}</p>
+          <p className="text-xs text-muted-foreground">{formatTimeAgo(announcement?.created_at)}</p>
         </div>
         <Button variant="ghost" size="icon">
           <Icon name="MoreHorizontal" size={16} />
@@ -175,15 +174,15 @@ const AnnouncementCard = ({ announcement, onLike, onComment }) => {
             {comments?.map((comment) => (
               <div key={comment?.id} className="flex space-x-3">
                 <Image
-                  src={comment?.avatar}
-                  alt={comment?.author}
+                  src={comment?.user?.avatar_url || '/assets/images/no_image.png'}
+                  alt={comment?.user?.full_name}
                   className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                 />
                 <div className="flex-1">
                   <div className="bg-muted rounded-lg p-3">
                     <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-medium text-sm text-card-foreground">{comment?.author}</span>
-                      <span className="text-xs text-muted-foreground">{formatTimeAgo(comment?.timestamp)}</span>
+                      <span className="font-medium text-sm text-card-foreground">{comment?.user?.full_name}</span>
+                      <span className="text-xs text-muted-foreground">{formatTimeAgo(comment?.created_at)}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">{comment?.content}</p>
                   </div>

@@ -1,0 +1,2 @@
+-- This migration was already included in the initial schema
+-- Keeping this file for reference as it was mentioned in the workspace structure
