@@ -1,28 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 const Login = () => {
-  const { signIn, user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const from = location.state?.from?.pathname || '/';
-
-  useEffect(() => {
-    if (user) {
-      navigate(from, { replace: true });
-    }
-  }, [user, navigate, from]);
 
   const handleChange = (e) => {
     setFormData({
@@ -37,12 +26,12 @@ const Login = () => {
     setError('');
 
     try {
-      const { error } = await signIn(formData.email, formData.password);
-      if (error) throw error;
-
-      // Redirect will happen via useEffect when user state updates
+      // Simulate login without authentication
+      console.log('Login attempted:', formData);
+      alert('Login successful! (No authentication)');
+      navigate('/student-dashboard'); // Navigate to next page after login
     } catch (error) {
-      setError(error.message || 'Failed to sign in');
+      setError('Failed to sign in');
     } finally {
       setLoading(false);
     }

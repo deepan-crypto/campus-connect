@@ -21,11 +21,19 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
+  const handleInputChange = (e) => {
+    setFormData(prev => ({
+      ...prev,
       [e.target.name]: e.target.value
-    });
+    }));
+  };
+
+  const handleSelectChange = (name, value) => {
+    console.log('Select changed:', name, 'to', value);
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -33,6 +41,7 @@ const Signup = () => {
     setLoading(true);
     setError('');
 
+    // Simple validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -40,20 +49,12 @@ const Signup = () => {
     }
 
     try {
-      const { error } = await signUp(formData.email, formData.password, {
-        full_name: formData.fullName,
-        role: formData.role,
-        department: formData.department,
-        graduation_year: parseInt(formData.graduationYear)
-      });
-
-      if (error) throw error;
-
-      // Show success message and redirect to login
-      alert('Account created successfully! Please check your email to verify your account.');
-      navigate('/login');
+      // Simulate form submission without authentication
+      console.log('Form submitted:', formData);
+      alert('Form submitted successfully! (No authentication)');
+      navigate('/login'); // Navigate to login page after signup
     } catch (error) {
-      setError(error.message || 'Failed to create account');
+      setError('Failed to submit form');
     } finally {
       setLoading(false);
     }
@@ -107,8 +108,7 @@ const Signup = () => {
                 name="fullName"
                 placeholder="Full name"
                 value={formData.fullName}
-                onChange={handleChange}
-                required
+                onChange={handleInputChange}
                 iconName="User"
                 label="Full Name"
               />
@@ -120,43 +120,42 @@ const Signup = () => {
                 name="email"
                 placeholder="Email address"
                 value={formData.email}
-                onChange={handleChange}
-                required
+                onChange={handleInputChange}
                 iconName="Mail"
                 label="Email"
               />
             </div>
 
             <div>
-              <Select
+            <Select
                 name="role"
                 value={formData.role}
-                onChange={handleChange}
+                onChange={(value) => handleSelectChange('role', value)}
                 options={roleOptions}
                 label="Role"
-                required
+                key="role-select"
               />
             </div>
 
             <div>
-              <Select
+            <Select
                 name="department"
                 value={formData.department}
-                onChange={handleChange}
+                onChange={(value) => handleSelectChange('department', value)}
                 options={departmentOptions}
                 label="Department"
-                required
+                key="department-select"
               />
             </div>
 
             <div>
-              <Select
+            <Select
                 name="graduationYear"
                 value={formData.graduationYear}
-                onChange={handleChange}
+                onChange={(value) => handleSelectChange('graduationYear', value)}
                 options={graduationYearOptions}
                 label="Graduation Year"
-                required
+                key="graduationYear-select"
               />
             </div>
 
@@ -166,8 +165,7 @@ const Signup = () => {
                 name="password"
                 placeholder="Password"
                 value={formData.password}
-                onChange={handleChange}
-                required
+                onChange={handleInputChange}
                 iconName="Lock"
                 label="Password"
               />
@@ -179,8 +177,7 @@ const Signup = () => {
                 name="confirmPassword"
                 placeholder="Confirm password"
                 value={formData.confirmPassword}
-                onChange={handleChange}
-                required
+                onChange={handleInputChange}
                 iconName="Lock"
                 label="Confirm Password"
               />

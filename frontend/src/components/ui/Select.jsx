@@ -1,274 +1,214 @@
-// components/ui/Select.jsx - Shadcn style Select
+// components/ui/Select.jsx
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Search, X } from "lucide-react";
+import { ChevronDown, Check, X, Search } from "lucide-react";
+import { createPortal } from "react-dom";
 import { cn } from "../../utils/cn";
-import Button from "./Button";
 import Input from "./Input";
+import Button from "./Button";
+
+const SelectMenu = ({
+    options,
+    value,
+    position,
+    onSelect,
+    onClose
+}) => {
+    if (!position) return null;
+    
+    return createPortal(
+        <div
+            className="fixed inset-0 z-50"
+            onClick={onClose}
+        >
+            <div
+                className={cn(
+                    "fixed z-[51] overflow-auto",
+                    "bg-white border border-gray-200 rounded-md shadow-md"
+                )}
+                style={{
+                    top: position.top,
+                    left: position.left,
+                    width: position.width,
+                    maxHeight: position.maxHeight,
+                }}
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="py-1">
+                    {options.map((option) => (
+                        <div
+                            key={option.value}
+                            className={cn(
+                                "px-3 py-2 text-sm cursor-pointer select-none",
+                                "hover:bg-gray-100",
+                                value !== undefined && value !== '' && value === option.value && "bg-gray-100 font-medium",
+                                "flex items-center justify-between"
+                            )}
+                            onClick={() => onSelect(option)}
+                        >
+                            <span>{option.label}</span>
+                            {value !== undefined && value !== '' && value === option.value && (
+                                <Check className="h-4 w-4" />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
 
 const Select = React.forwardRef(({
     className,
     options = [],
     value,
-    defaultValue,
     placeholder = "Select an option",
-    multiple = false,
     disabled = false,
     required = false,
     label,
-    description,
     error,
-    searchable = false,
-    clearable = false,
-    loading = false,
-    id,
     name,
     onChange,
-    onOpenChange,
     ...props
 }, ref) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [dropdownPosition, setDropdownPosition] = useState('down');
     const containerRef = useRef(null);
+    const [menuPosition, setMenuPosition] = useState(null);
 
-    // Generate unique ID if not provided
-    const selectId = id || `select-${Math.random()?.toString(36)?.substr(2, 9)}`;
-
-    // Calculate dropdown position
     useEffect(() => {
-        if (isOpen && containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-            const dropdownHeight = 240; // Approximate max height
-            
-            if (rect.bottom + dropdownHeight > viewportHeight && rect.top > dropdownHeight) {
-                setDropdownPosition('up');
-            } else {
-                setDropdownPosition('down');
+        const handleScroll = () => {
+            if (isOpen) {
+                setMenuPosition(getMenuPosition());
             }
-        }
-    }, [isOpen]);
+        };
 
-    // Close dropdown when clicking outside
-    useEffect(() => {
         const handleClickOutside = (event) => {
             if (containerRef.current && !containerRef.current.contains(event.target)) {
                 setIsOpen(false);
-                onOpenChange?.(false);
-                setSearchTerm("");
+                setMenuPosition(null);
             }
         };
 
         if (isOpen) {
+            window.addEventListener('scroll', handleScroll, true);
             document.addEventListener('mousedown', handleClickOutside);
         }
 
         return () => {
+            window.removeEventListener('scroll', handleScroll, true);
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isOpen, onOpenChange]);
+    }, [isOpen]);
 
-    // Filter options based on search
-    const filteredOptions = searchable && searchTerm
-        ? options?.filter(option =>
-            option?.label?.toLowerCase()?.includes(searchTerm?.toLowerCase()) ||
-            (option?.value && option?.value?.toString()?.toLowerCase()?.includes(searchTerm?.toLowerCase()))
-        )
-        : options;
+    const getMenuPosition = () => {
+        if (!containerRef.current) return null;
 
-    // Get selected option(s) for display
-    const getSelectedDisplay = () => {
-        if (!value) return placeholder;
+        const rect = containerRef.current.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+        const windowWidth = window.innerWidth;
+        const menuHeight = Math.min(options.length * 36 + 16, 200);
+        const spaceBelow = windowHeight - rect.bottom;
+        const spaceAbove = rect.top;
 
-        if (multiple) {
-            const selectedOptions = options?.filter(opt => value?.includes(opt?.value));
-            if (selectedOptions?.length === 0) return placeholder;
-            if (selectedOptions?.length === 1) return selectedOptions?.[0]?.label;
-            return `${selectedOptions?.length} items selected`;
-        }
+        // Determine if we should position below or above
+        const positionBelow = spaceBelow >= menuHeight || spaceBelow >= spaceAbove;
 
-        const selectedOption = options?.find(opt => opt?.value === value);
-        return selectedOption ? selectedOption?.label : placeholder;
-    };
+        let top, left, maxHeight;
 
-    const handleToggle = () => {
-        if (!disabled) {
-            const newIsOpen = !isOpen;
-            setIsOpen(newIsOpen);
-            onOpenChange?.(newIsOpen);
-            if (!newIsOpen) {
-                setSearchTerm("");
-            }
-        }
-    };
-
-    const handleOptionSelect = (option) => {
-        if (multiple) {
-            const newValue = value || [];
-            const updatedValue = newValue?.includes(option?.value)
-                ? newValue?.filter(v => v !== option?.value)
-                : [...newValue, option?.value];
-            onChange?.(updatedValue);
+        if (positionBelow) {
+            maxHeight = Math.min(menuHeight, spaceBelow - 8);
+            top = rect.bottom + 4;
         } else {
-            onChange?.(option?.value);
+            maxHeight = Math.min(menuHeight, spaceAbove - 8);
+            top = rect.top - maxHeight - 4;
+        }
+
+        // Ensure dropdown doesn't go off the right edge
+        left = Math.max(8, Math.min(rect.left, windowWidth - rect.width - 8));
+
+        return {
+            top,
+            left,
+            width: rect.width,
+            maxHeight,
+        };
+    };
+
+    const handleOpen = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!disabled) {
+            setIsOpen(true);
+            setMenuPosition(getMenuPosition());
+        }
+    };
+
+    const handleSelect = (option) => {
+        if (option && option.value !== undefined) {
+            console.log('Selecting option:', option);
             setIsOpen(false);
-            onOpenChange?.(false);
+            setMenuPosition(null);
+            onChange(option.value);
         }
     };
 
-    const handleClear = (e) => {
-        e?.stopPropagation();
-        onChange?.(multiple ? [] : '');
-    };
-
-    const handleSearchChange = (e) => {
-        setSearchTerm(e?.target?.value);
-    };
-
-    const isSelected = (optionValue) => {
-        if (multiple) {
-            return value?.includes(optionValue) || false;
-        }
-        return value === optionValue;
-    };
-
-    const hasValue = multiple ? value?.length > 0 : value !== undefined && value !== '';
+    const selectedOption = options.find(opt => opt && opt.value === value);
 
     return (
-        <div ref={containerRef} className={cn("relative", className)}>
+        <div className="space-y-2">
             {label && (
-                <label
-                    htmlFor={selectId}
-                    className={cn(
-                        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 mb-2 block",
-                        error ? "text-destructive" : "text-foreground"
-                    )}
-                >
+                <label className={cn(
+                    "block text-sm font-medium",
+                    error ? "text-red-500" : "text-gray-700"
+                )}>
                     {label}
-                    {required && <span className="text-destructive ml-1">*</span>}
+                    {required && <span className="text-red-500 ml-1">*</span>}
                 </label>
             )}
-            <div className="relative">
+            <div ref={containerRef} className="relative">
                 <button
-                    ref={ref}
-                    id={selectId}
                     type="button"
                     className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                        error && "border-destructive focus:ring-destructive",
-                        !hasValue && "text-muted-foreground"
+                        "relative w-full cursor-pointer rounded-md border bg-white py-2 pl-3 pr-10 text-left shadow-sm focus:outline-none focus:ring-1 sm:text-sm",
+                        error ? "border-red-300 focus:border-red-500 focus:ring-red-500" :
+                               "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
+                        disabled && "cursor-not-allowed bg-gray-50 text-gray-500",
+                        className
                     )}
-                    onClick={handleToggle}
+                    onClick={handleOpen}
+                    ref={ref}
                     disabled={disabled}
-                    aria-expanded={isOpen}
-                    aria-haspopup="listbox"
-                    {...props}
                 >
-                    <span className="truncate">{getSelectedDisplay()}</span>
-
-                    <div className="flex items-center gap-1">
-                        {loading && (
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                        )}
-
-                        {clearable && hasValue && !loading && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-4 w-4"
-                                onClick={handleClear}
-                            >
-                                <X className="h-3 w-3" />
-                            </Button>
-                        )}
-
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                    </div>
-                </button>
-
-                {/* Hidden native select for form submission */}
-                <select
-                    name={name}
-                    value={value || ''}
-                    onChange={() => { }} // Controlled by our custom logic
-                    className="sr-only"
-                    tabIndex={-1}
-                    multiple={multiple}
-                    required={required}
-                >
-                    <option value="">Select...</option>
-                    {options?.map(option => (
-                        <option key={option?.value} value={option?.value}>
-                            {option?.label}
-                        </option>
-                    ))}
-                </select>
-
-                {/* Dropdown */}
-                {isOpen && (
-                    <div className={cn(
-                        "absolute z-50 w-full bg-popover border border-border rounded-md shadow-lg",
-                        dropdownPosition === 'up' ? "bottom-full mb-1" : "top-full mt-1"
+                    <span className={cn(
+                        "block truncate",
+                        (!selectedOption || value === undefined || value === '') && "text-gray-500"
                     )}>
-                        {searchable && (
-                            <div className="p-2 border-b border-border">
-                                <div className="relative">
-                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search options..."
-                                        value={searchTerm}
-                                        onChange={handleSearchChange}
-                                        className="pl-8"
-                                    />
-                                </div>
-                            </div>
-                        )}
+                        {selectedOption ? selectedOption.label : placeholder}
+                    </span>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                        <ChevronDown className={cn(
+                            "h-4 w-4 text-gray-400",
+                            isOpen && "transform rotate-180"
+                        )} />
+                    </span>
+                </button>
+                
+                {isOpen && (
+                    <SelectMenu
+                        options={options}
+                        value={value}
+                        position={menuPosition}
+                        onSelect={handleSelect}
+                        onClose={() => setIsOpen(false)}
+                    />
+                )}
 
-                        <div className="py-1 max-h-60 overflow-auto">
-                            {filteredOptions?.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-muted-foreground">
-                                    {searchTerm ? 'No options found' : 'No options available'}
-                                </div>
-                            ) : (
-                                filteredOptions?.map((option) => (
-                                    <div
-                                        key={option?.value}
-                                        className={cn(
-                                            "relative flex cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                                            isSelected(option?.value) && "bg-accent text-accent-foreground font-medium",
-                                            option?.disabled && "pointer-events-none opacity-50"
-                                        )}
-                                        onClick={() => !option?.disabled && handleOptionSelect(option)}
-                                    >
-                                        <span className="flex-1">{option?.label}</span>
-                                        {multiple && isSelected(option?.value) && (
-                                            <Check className="h-4 w-4" />
-                                        )}
-                                        {option?.description && (
-                                            <span className="text-xs text-muted-foreground ml-2">
-                                                {option?.description}
-                                            </span>
-                                        )}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
+                {error && (
+                    <p className="mt-1 text-sm text-red-500">
+                        {error}
+                    </p>
                 )}
             </div>
-            {description && !error && (
-                <p className="text-sm text-muted-foreground mt-1">
-                    {description}
-                </p>
-            )}
-            {error && (
-                <p className="text-sm text-destructive mt-1">
-                    {error}
-                </p>
-            )}
         </div>
     );
 });
