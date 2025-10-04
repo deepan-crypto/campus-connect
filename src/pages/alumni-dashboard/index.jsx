@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
-import MentorshipRequestCard from './components/MentorshipRequestCard';
+import MentorShipRequestCard from './components/MentorShipRequestCard';
 import CurrentMenteeCard from './components/CurrentMenteeCard';
 import EventCard from './components/EventCard';
 import AnnouncementCard from './components/AnnouncementCard';
@@ -433,7 +433,7 @@ const AlumniDashboard = () => {
               </div>
               <div className="space-y-6">
                 {mentorshipRequests?.map((request) => (
-                  <MentorshipRequestCard
+                  <MentorShipRequestCard
                     key={request?.id}
                     request={request}
                     onAccept={handleAcceptMentorship}
