@@ -1,0 +1,179 @@
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User, Profile } from '../types';
+import { api } from '../api';
+
+interface AuthContextType {
+  user: User | null;
+  profile: Profile | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, role: string, profileData: Partial<Profile>) => Promise<void>;
+  logout: () => void;
+  updateProfile: (data: Partial<Profile>) => Promise<void>;
+  isLoading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    const storedProfile = localStorage.getItem('profile');
+
+    if (storedUser && storedProfile) {
+      setUser(JSON.parse(storedUser));
+      setProfile(JSON.parse(storedProfile));
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    // Try backend login if available
+    try {
+      const resp = await api('/auth/login', { method: 'POST', body: { email, password } });
+      if (resp && resp.token) {
+        localStorage.setItem('token', resp.token);
+        localStorage.setItem('user', JSON.stringify(resp.user));
+        // attempt to fetch profile - backend doesn't have profile route yet; use user as minimal
+        localStorage.setItem('profile', JSON.stringify({ id: resp.user.id, firstName: resp.user.name }));
+        setUser(resp.user);
+        setProfile({ id: resp.user.id, firstName: resp.user.name } as Profile);
+        return;
+      }
+    } catch (e) {
+      // ignore and fall back to mock
+    }
+
+    // For easier testing, we'll use predefined profiles based on email
+    let mockUser: User;
+    let mockProfile: Profile;
+    
+    if (email.includes('alumni')) {
+      // Use John Doe profile from mockProfiles
+      mockUser = {
+        id: '1',
+        email,
+        role: 'alumni',
+        emailVerified: true,
+        createdAt: new Date().toISOString(),
+      };
+      
+      mockProfile = {
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        bio: 'Alumni working at Microsoft. Passionate about mentoring and helping students grow.',
+        department: 'Computer Science',
+        graduationYear: 2018,
+        currentEmployer: 'Microsoft',
+        profileVisibility: 'public',
+        skills: [
+          { id: '1', skillName: 'React', endorsements: 15 },
+          { id: '2', skillName: 'TypeScript', endorsements: 10 },
+        ],
+        interests: ['Mentorship', 'Web Development', 'Software Architecture'],
+      skills: [
+        { id: '1', skillName: 'React', endorsements: 5 },
+        { id: '2', skillName: 'TypeScript', endorsements: 3 },
+      ],
+      interests: ['Web Development', 'Machine Learning', 'Entrepreneurship'],
+    };
+
+    localStorage.setItem('user', JSON.stringify(mockUser));
+    localStorage.setItem('profile', JSON.stringify(mockProfile));
+
+    setUser(mockUser);
+    setProfile(mockProfile);
+  };
+
+  const signup = async (
+    email: string,
+    password: string,
+    role: string,
+    profileData: Partial<Profile>
+  ) => {
+    try {
+      const resp = await api('/auth/signup', { method: 'POST', body: { email, password, name: profileData.firstName || email, role } });
+      if (resp && resp.token) {
+        localStorage.setItem('token', resp.token);
+        localStorage.setItem('user', JSON.stringify(resp.user));
+        localStorage.setItem('profile', JSON.stringify({ id: resp.user.id, firstName: resp.user.name }));
+        setUser(resp.user);
+        setProfile({ id: resp.user.id, firstName: resp.user.name } as Profile);
+        return;
+      }
+    } catch (e) {
+      // ignore and fallback to mock
+    }
+
+    const newUser: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      email,
+      role: role as any,
+      emailVerified: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newProfile: Profile = {
+      id: newUser.id,
+      firstName: profileData.firstName || '',
+      lastName: profileData.lastName || '',
+      bio: profileData.bio,
+      department: profileData.department,
+      graduationYear: profileData.graduationYear,
+      currentEmployer: profileData.currentEmployer,
+      profileVisibility: 'public',
+      skills: [],
+      interests: [],
+    };
+
+    localStorage.setItem('user', JSON.stringify(newUser));
+    localStorage.setItem('profile', JSON.stringify(newProfile));
+
+    setUser(newUser);
+    setProfile(newProfile);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('profile');
+    setUser(null);
+    setProfile(null);
+  };
+
+  const updateProfile = async (data: Partial<Profile>) => {
+    if (!profile) return;
+
+    const updatedProfile = { ...profile, ...data };
+    localStorage.setItem('profile', JSON.stringify(updatedProfile));
+    setProfile(updatedProfile);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        login,
+        signup,
+        logout,
+        updateProfile,
+        isLoading,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
