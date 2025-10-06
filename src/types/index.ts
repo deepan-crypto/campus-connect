@@ -10,7 +10,9 @@ export type EventType = 'career' | 'workshop' | 'cultural' | 'sports' | 'academi
 
 export type RsvpStatus = 'going' | 'interested' | 'not_going';
 
-export type PostType = 'announcement' | 'update' | 'event';
+export type PostType = 'announcement' | 'update' | 'event' | 'post';
+
+export type PostVisibility = 'public' | 'private' | 'faculty-only';
 
 export type NotificationType = 'connection' | 'mentorship' | 'event' | 'post';
 
@@ -118,12 +120,17 @@ export interface Post {
   id: string;
   authorId: string;
   author?: Profile;
+  title?: string;
   content: string;
+  imageUrl?: string;
   postType: PostType;
+  visibility?: PostVisibility;
+  tags?: string[];
   likesCount: number;
   commentsCount: number;
   userLiked: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Comment {

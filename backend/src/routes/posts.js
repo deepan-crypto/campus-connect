@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // Create a new post
 router.post('/', authenticate, async (req, res) => {
     try {
-        const { content } = req.body;
+        const { title, content, imageUrl, postType, visibility, tags } = req.body;
         const userId = req.user.id;
 
         if (!content) {
@@ -17,7 +17,12 @@ router.post('/', authenticate, async (req, res) => {
 
         const post = await prisma.post.create({
             data: {
+                title,
                 content,
+                imageUrl,
+                postType: postType || 'post',
+                visibility: visibility || 'public',
+                tags: tags || [],
                 authorId: userId,
             },
             include: {

@@ -8,18 +8,20 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(uuid())
-  email          String         @unique
-  name           String
-  role           String
-  password       String
-  createdAt      DateTime       @default(now())
-  profile        Profile?
-  posts          Post[]
-  likes          Like[]
-  comments       Comment[]
-  conversations  Conversation[] @relation("ConversationParticipants")
-  sentMessages   Message[]      @relation("SentMessages")
+  id                String         @id @default(uuid())
+  email             String         @unique
+  name              String
+  role              String
+  password          String
+  createdAt         DateTime       @default(now())
+  profile           Profile?
+  posts             Post[]
+  likes             Like[]
+  comments          Comment[]
+  conversations     Conversation[] @relation("ConversationParticipants")
+  sentMessages      Message[]      @relation("SentMessages")
+  sentConnections   Connection[]   @relation("ConnectionRequester")
+  receivedConnections Connection[]  @relation("ConnectionReceiver")
 }
 
 model Profile {
@@ -32,9 +34,12 @@ model Profile {
 
 model Post {
   id          String    @id @default(uuid())
+  title       String?
   content     String
   imageUrl    String?
   postType    String    @default("post") // Can be "post" or "announcement"
+  visibility  String?   @default("public") // e.g., "public", "private", "faculty-only"
+  tags        String[]  @default([])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   author      User      @relation(fields: [authorId], references: [id])
@@ -94,6 +99,19 @@ model Event {
   bannerUrl   String?
   tags        String[] @default([])
   createdBy   String
+}
+
+model Connection {
+  id          String   @id @default(uuid())
+  status      String   // "pending", "accepted", "rejected"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  requester   User     @relation("ConnectionRequester", fields: [requesterId], references: [id])
+  requesterId String
+  receiver    User     @relation("ConnectionReceiver", fields: [receiverId], references: [id])
+  receiverId  String
+
+  @@unique([requesterId, receiverId])
 }
 
 

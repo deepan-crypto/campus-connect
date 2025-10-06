@@ -1,4 +1,5 @@
 import { supabase } from './lib/supabase';
+import { Post } from './types';
 
 const API_URL = 'http://localhost:4000/api';
 
@@ -67,6 +68,46 @@ export async function getComments(postId: string, page = 1, limit = 10): Promise
 export async function deleteComment(commentId: string): Promise<void> {
   return api(`/comments/comments/${commentId}`, {
     method: 'DELETE',
+  });
+}
+
+// Post-related API functions
+export interface PostData {
+  title?: string;
+  content: string;
+  imageUrl?: string;
+  postType?: string;
+  visibility?: string;
+  tags?: string[];
+}
+
+export interface PaginatedPosts {
+  posts: Post[];
+  pagination: {
+    total: number;
+    pages: number;
+    currentPage: number;
+  };
+}
+
+export async function createPost(postData: PostData): Promise<Post> {
+  return api('/posts', {
+    method: 'POST',
+    body: JSON.stringify(postData),
+  });
+}
+
+export async function getPosts(page = 1, limit = 10): Promise<PaginatedPosts> {
+  return api(`/posts?page=${page}&limit=${limit}`);
+}
+
+export async function getPost(postId: string): Promise<Post> {
+  return api(`/posts/${postId}`);
+}
+
+export async function likePost(postId: string): Promise<{ liked: boolean; post: Post }> {
+  return api(`/posts/${postId}/like`, {
+    method: 'POST',
   });
 }
 

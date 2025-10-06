@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { UserPlus, UserCheck, X, Search, Briefcase, GraduationCap } from 'lucide-react';
-import { mockProfiles, mockConnections } from '../data/mockData';
+import { useState, useEffect } from 'react';
+import { UserPlus, UserCheck, X, Search, Briefcase, GraduationCap, Bell, AlertCircle } from 'lucide-react';
+import { mockProfiles } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
+import { api } from '../api';
 
 export function ConnectionsPage() {
   const { profile } = useAuth();
