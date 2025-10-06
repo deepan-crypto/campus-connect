@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { MessagingProvider } from './contexts/MessagingContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
@@ -124,9 +123,7 @@ function App() {
   return (
     <AuthProvider>
       <SocketProvider>
-        <MessagingProvider>
-          <AppContent />
-        </MessagingProvider>
+        <AppContent />
       </SocketProvider>
     </AuthProvider>
   );

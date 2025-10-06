@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Send, Phone, Video, MoreVertical, ArrowLeft, Smile } from 'lucide-react';
-import { useMessaging } from '../contexts/MessagingContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mockProfiles } from '../data/mockData';
 
 export function MessagesPage() {
   const { profile } = useAuth();
-  const { conversations, messages, sendMessage, markAsRead, loadMessages } = useMessaging();
+  // Using mock data instead of useMessaging hook
+  const [conversations, setConversations] = useState(mockProfiles.map(profile => ({
+    id: profile.id,
+    participants: [profile.id],
+    updatedAt: new Date().toISOString(),
+    unreadCount: 0,
+  })));
+  const [messages, setMessages] = useState<{ [key: string]: any[] }>({});
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,13 +21,6 @@ export function MessagesPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  useEffect(() => {
-    if (selectedConversationId) {
-      loadMessages(selectedConversationId);
-      markAsRead(selectedConversationId);
-    }
-  }, [selectedConversationId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -59,32 +58,21 @@ export function MessagesPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedConversationId) return;
-    try {
-      await sendMessage(selectedConversationId, messageInput);
-      setMessageInput('');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    }
+    // Mock sending message
+    const newMessage = {
+      id: Math.random().toString(36).substr(2, 9),
+      senderId: profile?.id,
+      content: messageInput.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => ({
+      ...prev,
+      [selectedConversationId]: [...(prev[selectedConversationId] || []), newMessage],
+    }));
+    setMessageInput('');
   };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const sortedConversations = [...conversations]
-    .filter((conv) => conv.participants.includes(profile?.id || ''))
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-  const filteredConversations = sortedConversations.filter((conv) => {
-    const otherUser = getOtherParticipant(conv);
-    const fullName = `${otherUser.firstName} ${otherUser.lastName}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
-  });
 
   return (
     <div className="flex h-[calc(100vh-120px)] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -111,72 +99,78 @@ export function MessagesPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.length === 0 ? (
+          {conversations.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No conversations yet</p>
             </div>
           ) : (
-            filteredConversations.map((conversation) => {
-              const otherUser = getOtherParticipant(conversation);
-              const lastMessage = getLastMessage(conversation);
-              const isSelected = selectedConversationId === conversation.id;
+            conversations
+              .filter((conv) => {
+                const otherUser = getOtherParticipant(conv);
+                const fullName = `${otherUser.firstName} ${otherUser.lastName}`.toLowerCase();
+                return fullName.includes(searchQuery.toLowerCase());
+              })
+              .map((conversation) => {
+                const otherUser = getOtherParticipant(conversation);
+                const lastMessage = getLastMessage(conversation);
+                const isSelected = selectedConversationId === conversation.id;
 
-              return (
-                <button
-                  key={conversation.id}
-                  onClick={() => setSelectedConversationId(conversation.id)}
-                  className={`w-full p-4 flex items-start space-x-3 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-                    isSelected ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="relative">
-                    {'avatarUrl' in otherUser && otherUser.avatarUrl ? (
-                      <img
-                        src={otherUser.avatarUrl}
-                        alt={`${otherUser.firstName} ${otherUser.lastName}`}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                        {otherUser.firstName[0]}
-                        {otherUser.lastName[0]}
+                return (
+                  <button
+                    key={conversation.id}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                    className={`w-full p-4 flex items-start space-x-3 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
+                      isSelected ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="relative">
+                      {'avatarUrl' in otherUser && otherUser.avatarUrl ? (
+                        <img
+                          src={otherUser.avatarUrl}
+                          alt={`${otherUser.firstName} ${otherUser.lastName}`}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                          {otherUser.firstName[0]}
+                          {otherUser.lastName[0]}
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 border-2 border-white"></span>
+                    </div>
+
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-semibold text-gray-900 truncate">
+                          {otherUser.firstName} {otherUser.lastName}
+                        </h3>
+                        {lastMessage && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            {getTimeDisplay(lastMessage.createdAt)}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 border-2 border-white"></span>
-                  </div>
-
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
-                        {otherUser.firstName} {otherUser.lastName}
-                      </h3>
                       {lastMessage && (
-                        <span className="text-xs text-gray-500 ml-2">
-                          {getTimeDisplay(lastMessage.createdAt)}
+                        <p
+                          className={`text-sm truncate ${
+                            conversation.unreadCount > 0
+                              ? 'text-gray-900 font-medium'
+                              : 'text-gray-600'
+                          }`}
+                        >
+                          {lastMessage.senderId === profile?.id ? 'You: ' : ''}
+                          {lastMessage.content}
+                        </p>
+                      )}
+                      {conversation.unreadCount > 0 && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                          {conversation.unreadCount}
                         </span>
                       )}
                     </div>
-                    {lastMessage && (
-                      <p
-                        className={`text-sm truncate ${
-                          conversation.unreadCount > 0
-                            ? 'text-gray-900 font-medium'
-                            : 'text-gray-600'
-                        }`}
-                      >
-                        {lastMessage.senderId === profile?.id ? 'You: ' : ''}
-                        {lastMessage.content}
-                      </p>
-                    )}
-                    {conversation.unreadCount > 0 && (
-                      <span className="inline-block mt-1 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })
+                  </button>
+                );
+              })
           )}
         </div>
       </div>
@@ -279,7 +273,12 @@ export function MessagesPage() {
                 <textarea
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
                   placeholder="Type a message..."
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   rows={1}

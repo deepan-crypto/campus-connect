@@ -21,12 +21,7 @@ export function MentorshipPage() {
 
   const isMentor = user?.role === 'alumni' || user?.role === 'faculty';
 
-  // Debugging - log whenever user or profile changes
-  console.log("=== MentorshipPage Render ===");
-  console.log("User:", user);
-  console.log("Profile:", profile);
-  console.log("Is Mentor?", isMentor);
-  console.log("User role:", user?.role);
+
 
   const calculateMatchScore = (mentorProfile: typeof mockProfiles[0]) => {
     if (!profile || !profile.skills || !mentorProfile.skills) return 0;
@@ -82,17 +77,8 @@ export function MentorshipPage() {
     (req) => req.mentorId === profile?.id
   ) : [];
 
-  // Add debugging
-  console.log("Current profile:", profile);
-  console.log("Is mentor?", isMentor);
-  console.log("All mentorship requests:", mentorshipRequests);
-  console.log("Filtered mentor requests:", mentorRequests);
-
   const pendingMentorRequests = mentorRequests.filter(req => req.status === 'pending');
   const activeMentees = mentorRequests.filter(req => req.status === 'active');
-  
-  console.log("Pending mentor requests:", pendingMentorRequests);
-  console.log("Active mentees:", activeMentees);
 
   const handleRequestMentorship = () => {
     if (!selectedMentor || !profile) return;
@@ -149,21 +135,7 @@ export function MentorshipPage() {
 
   return (
     <div>
-      {/* Debug Info Banner */}
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <HelpCircle className="h-5 w-5 text-yellow-400" />
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-yellow-700">
-              <strong>Debug Info:</strong> User Role: <code className="bg-yellow-100 px-1 rounded">{user?.role || 'undefined'}</code> | 
-              Profile ID: <code className="bg-yellow-100 px-1 rounded">{profile?.id || 'undefined'}</code> | 
-              Is Mentor: <code className="bg-yellow-100 px-1 rounded">{isMentor ? 'Yes' : 'No'}</code>
-            </p>
-          </div>
-        </div>
-      </div>
+
       
       <h1 className="text-3xl font-bold text-gray-900 mb-8">
         {isMentor ? 'Mentorship Management' : 'Mentorship Program'}

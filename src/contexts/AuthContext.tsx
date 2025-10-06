@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Profile } from '../types';
+import { User, Profile, UserRole } from '../types';
 import { supabase } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       const profileData: Profile = {
         id: data.id,
+        userId: data.id,
         firstName: data.full_name?.split(' ')[0] || '',
         lastName: data.full_name?.split(' ').slice(1).join(' ') || '',
         bio: data.bio || '',
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       (async () => {
         if (session?.user) {
           const currentUser: User = {
@@ -184,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const currentUser: User = {
           id: data.user.id,
           email: data.user.email || '',
-          role: role,
+          role: role as UserRole,
           emailVerified: data.user.email_confirmed_at !== null,
           createdAt: data.user.created_at || new Date().toISOString(),
         };
