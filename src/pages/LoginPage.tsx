@@ -196,7 +196,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
         </div>
 
         <p className="text-center text-sm text-gray-600 mt-6">
-          Demo: Use any email and password to login
+          
         </p>
       </div>
     </div>
