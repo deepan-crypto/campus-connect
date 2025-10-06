@@ -38,6 +38,7 @@ export interface Profile {
   lastName?: string;
   email?: string;
   role?: UserRole;
+  avatarUrl?: string;
   profilePicture?: string;
   headline?: string;
   bio?: string;

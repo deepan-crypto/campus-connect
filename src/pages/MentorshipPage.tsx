@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Award, TrendingUp, MessageSquare, CheckCircle, Plus, Target, FolderOpen, HelpCircle, Star, Clock, Calendar, BarChart3 } from 'lucide-react';
 import { mockProfiles, mockMentorshipRequests, mockMentorshipTasks, mockMentorshipProjects, mockMentorshipDoubts, mockMentorshipFeedback, mockDailyProgress, mockProjectUpdates } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
 import { TaskStatus } from '../types';
 
 export function MentorshipPage() {
   const { profile, user } = useAuth();
+  const { socket } = useSocket();
   const [mentorshipRequests, setMentorshipRequests] = useState(mockMentorshipRequests);
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
   const [requestMessage, setRequestMessage] = useState('');
@@ -21,7 +23,45 @@ export function MentorshipPage() {
 
   const isMentor = user?.role === 'alumni' || user?.role === 'faculty';
 
+  useEffect(() => {
+    if (socket) {
+      const handleNewRequest = (newRequest: any) => {
+        console.log('Received new mentorship request:', newRequest);
+        // This is for a mentor receiving a request.
+        // The request is added to their list of pending requests.
+        if (isMentor && newRequest.mentorId === user?.id) {
+            setMentorshipRequests(prev => [...prev, { ...newRequest, id: newRequest._id, status: 'pending' }]);
+        }
+      };
 
+      const handleRequestAccepted = (acceptedRequest: any) => {
+        console.log('Mentorship request accepted:', acceptedRequest);
+        // This is for a student whose request was accepted.
+        setMentorshipRequests(prev => 
+          prev.map(req => req.id === acceptedRequest._id ? { ...req, status: 'active' } : req)
+        );
+      };
+
+      const handleRequestRejected = (rejectedRequest: any) => {
+        console.log('Mentorship request rejected:', rejectedRequest);
+        // This is for a student whose request was rejected.
+        setMentorshipRequests(prev => 
+          prev.map(req => req.id === rejectedRequest._id ? { ...req, status: 'rejected' } : req)
+        );
+      };
+
+      socket.on('new_mentorship_request', handleNewRequest);
+      socket.on('mentorship_request_accepted', handleRequestAccepted);
+      socket.on('mentorship_request_rejected', handleRequestRejected);
+
+      // Clean up listeners on component unmount
+      return () => {
+        socket.off('new_mentorship_request', handleNewRequest);
+        socket.off('mentorship_request_accepted', handleRequestAccepted);
+        socket.off('mentorship_request_rejected', handleRequestRejected);
+      };
+    }
+  }, [socket, isMentor, user?.id]);
 
   const calculateMatchScore = (mentorProfile: typeof mockProfiles[0]) => {
     if (!profile || !profile.skills || !mentorProfile.skills) return 0;
