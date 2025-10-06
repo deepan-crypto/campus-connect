@@ -11,11 +11,9 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
-  const [graduationYear, setGraduationYear] = useState('');
-  const [currentEmployer, setCurrentEmployer] = useState('');
+  const [year, setYear] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,32 +26,20 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
     try {
       if (isLogin) {
+        // Simple login with email and password
         await login(email, password);
-        // Navigate to mentorship page if user is alumni or faculty
-        if (email.includes('alumni') || email.includes('faculty')) {
-          onNavigate('mentorship');
-        } else {
-          onNavigate('feed');
-        }
+        // Always navigate to feed page after login
+        onNavigate('feed');
       } else {
-        if (!firstName || !lastName) {
-          setError('Please fill in all required fields');
+        if (!email || !password || !role || !name) {
+          setError('Please fill in all required fields: email, password, name, and role.');
           setLoading(false);
           return;
         }
-        await signup(email, password, role, {
-          firstName,
-          lastName,
-          department,
-          graduationYear: graduationYear ? parseInt(graduationYear) : undefined,
-          currentEmployer: role === 'alumni' ? currentEmployer : undefined,
-        });
-        // Navigate to mentorship page if user is alumni or faculty
-        if (role === 'alumni' || role === 'faculty') {
-          onNavigate('mentorship');
-        } else {
-          onNavigate('feed');
-        }
+        await signup(email, password, role, name, department, year);
+        
+        // Always navigate to feed page after signup
+        onNavigate('feed');
       }
     } catch (err) {
       setError('Authentication failed. Please try again.');
@@ -100,31 +86,18 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      First Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required={!isLogin}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Last Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required={!isLogin}
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., John Doe"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required={!isLogin}
+                  />
                 </div>
 
                 <div>
@@ -155,35 +128,18 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                   />
                 </div>
 
-                {(role === 'student' || role === 'alumni') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Graduation Year
-                    </label>
-                    <input
-                      type="number"
-                      value={graduationYear}
-                      onChange={(e) => setGraduationYear(e.target.value)}
-                      placeholder="e.g., 2025"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                )}
-
-                {role === 'alumni' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Current Employer
-                    </label>
-                    <input
-                      type="text"
-                      value={currentEmployer}
-                      onChange={(e) => setCurrentEmployer(e.target.value)}
-                      placeholder="e.g., Google"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Year
+                  </label>
+                  <input
+                    type="text"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    placeholder="e.g., 2025"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               </>
             )}
 
@@ -214,8 +170,10 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+              <div className="text-red-500 text-sm mb-4">
+                {error === 'Invalid credentials'
+                  ? 'The email or password you entered is incorrect. Please try again.'
+                  : error}
               </div>
             )}
 

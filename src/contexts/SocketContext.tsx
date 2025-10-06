@@ -1,7 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { supabase } from '../lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface Connection {
   id: string;
@@ -50,7 +48,6 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [online, setOnline] = useState(true);
   const [connectionRequests, setConnectionRequests] = useState<Connection[]>([]);
   const [connectionUpdates, setConnectionUpdates] = useState<Connection[]>([]);
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -61,106 +58,27 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     loadConnections();
-
-    const connectionsChannel = supabase
-      .channel('connections-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'connections',
-          filter: `receiver_id=eq.${user.id}`
-        },
-        (payload) => {
-          handleConnectionChange(payload);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'connections',
-          filter: `sender_id=eq.${user.id}`
-        },
-        (payload) => {
-          handleConnectionChange(payload);
-        }
-      )
-      .subscribe();
-
-    setChannel(connectionsChannel);
     setOnline(true);
-
-    return () => {
-      connectionsChannel.unsubscribe();
-    };
   }, [user]);
 
   const loadConnections = async () => {
     if (!user) return;
 
     try {
-      const { data: pending, error: pendingError } = await supabase
-        .from('connections')
-        .select(`
-          *,
-          requester:sender_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('receiver_id', user.id)
-        .eq('status', 'pending');
+      // Use API calls instead of supabase
+      const response = await fetch(`http://localhost:4000/api/connections/me`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
 
-      if (pendingError) throw pendingError;
-
-      setConnectionRequests(pending || []);
-
-      const { data: accepted, error: acceptedError } = await supabase
-        .from('connections')
-        .select(`
-          *,
-          requester:sender_id (
-            id,
-            full_name,
-            avatar_url
-          ),
-          receiver:receiver_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .eq('status', 'accepted');
-
-      if (acceptedError) throw acceptedError;
-
-      setConnectionUpdates(accepted || []);
+      if (response.ok) {
+        const data = await response.json();
+        setConnectionRequests(data.pendingRequests || []);
+        setConnectionUpdates(data.acceptedConnections || []);
+      }
     } catch (error) {
       console.error('Error loading connections:', error);
-    }
-  };
-
-  const handleConnectionChange = (payload: any) => {
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-
-    if (eventType === 'INSERT') {
-      const connection = newRecord as Connection;
-      if (connection.receiver_id === user?.id && connection.status === 'pending') {
-        loadConnections();
-      }
-    } else if (eventType === 'UPDATE') {
-      const connection = newRecord as Connection;
-      if (connection.status === 'accepted' || connection.status === 'declined') {
-        loadConnections();
-      }
-    } else if (eventType === 'DELETE') {
-      setConnectionRequests(prev => prev.filter(c => c.id !== oldRecord.id));
-      setConnectionUpdates(prev => prev.filter(c => c.id !== oldRecord.id));
     }
   };
 
@@ -168,26 +86,20 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('connections')
-        .insert({
-          sender_id: user.id,
-          receiver_id: userId,
-          status: 'pending'
-        })
-        .select(`
-          *,
-          requester:sender_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .single();
+      const response = await fetch(`http://localhost:4000/api/connections/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ receiverId: userId }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to send connection request');
+      }
 
-      console.log('Connection request sent:', data);
+      await loadConnections();
     } catch (error) {
       console.error('Error sending connection request:', error);
       throw error;
@@ -198,15 +110,18 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('connections')
-        .update({
-          status: accept ? 'accepted' : 'declined'
-        })
-        .eq('id', connectionId)
-        .eq('receiver_id', user.id);
+      const response = await fetch(`http://localhost:4000/api/connections/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ connectionId, accept }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to respond to connection request');
+      }
 
       await loadConnections();
     } catch (error) {
@@ -219,13 +134,16 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('connections')
-        .delete()
-        .eq('id', connectionId)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      const response = await fetch(`http://localhost:4000/api/connections/${connectionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to remove connection');
+      }
 
       await loadConnections();
     } catch (error) {

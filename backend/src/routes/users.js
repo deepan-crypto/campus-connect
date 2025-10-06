@@ -1,25 +1,105 @@
 const express = require('express');
-const { _usersStore } = require('./auth');
+const { ObjectId } = require('mongodb');
+const { getDB } = require('../db');
 const { authenticate } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.get('/', authenticate, (req, res) => {
-  // return minimal profiles
-  res.json(_usersStore.map(u => ({ id: u.id, email: u.email, name: u.name, role: u.role, verified: u.verified })));
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection('User');
+    
+    // Return minimal profiles
+    const users = await usersCollection.find({}, {
+      projection: { password: 0 } // Exclude password
+    }).toArray();
+    
+    const usersWithId = users.map(u => ({
+      id: u._id.toString(),
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      department: u.department,
+      year: u.year
+    }));
+    
+    res.json(usersWithId);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const user = _usersStore.find(u => u.id === req.params.id);
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, role: user.role, verified: user.verified });
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection('User');
+    
+    const user = await usersCollection.findOne(
+      { _id: new ObjectId(req.params.id) },
+      { projection: { password: 0 } } // Exclude password
+    );
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
+    res.json({
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+      year: user.year
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
 });
 
-router.put('/:id', authenticate, (req, res) => {
-  const user = _usersStore.find(u => u.id === req.params.id);
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  Object.assign(user, req.body);
-  res.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } });
+router.put('/:id', authenticate, async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection('User');
+    
+    const { name, department, year } = req.body;
+    
+    const result = await usersCollection.findOneAndUpdate(
+      { _id: new ObjectId(req.params.id) },
+      { 
+        $set: { 
+          name,
+          department,
+          year,
+          updatedAt: new Date()
+        } 
+      },
+      { 
+        returnDocument: 'after',
+        projection: { password: 0 }
+      }
+    );
+    
+    if (!result.value) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
+    res.json({ 
+      ok: true, 
+      user: {
+        id: result.value._id.toString(),
+        name: result.value.name,
+        role: result.value.role,
+        department: result.value.department,
+        year: result.value.year
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
 });
 
 module.exports = router;

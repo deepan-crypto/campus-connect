@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { ObjectId } = require('mongodb');
+const { getDB } = require('../db');
 const { isBlacklisted } = require('../blacklist');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
 
@@ -22,10 +21,13 @@ async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: { profile: true }
-    });
+    const db = getDB();
+    const usersCollection = db.collection('User');
+    
+    const user = await usersCollection.findOne(
+      { _id: new ObjectId(decoded.userId) },
+      { projection: { password: 0 } }
+    );
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -33,11 +35,12 @@ async function authenticate(req, res, next) {
 
     // Add user info to request object
     req.user = {
-      id: user.id,
+      id: user._id.toString(),
       email: user.email,
       role: user.role,
       name: user.name,
-      profile: user.profile
+      department: user.department,
+      year: user.year
     };
 
     next();
@@ -45,6 +48,7 @@ async function authenticate(req, res, next) {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }
+    console.error('Authentication error:', error);
     return res.status(500).json({ error: 'Authentication error' });
   }
 }

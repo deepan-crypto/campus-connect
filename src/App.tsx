@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { MessagingProvider } from './contexts/MessagingContext';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { FeedPage } from './pages/FeedPage';
@@ -67,6 +68,11 @@ function AppContent() {
     }
   }, []);
 
+  // Log currentPage updates
+  useEffect(() => {
+    console.log('Current page updated to:', currentPage);
+  }, [currentPage]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -123,7 +129,9 @@ function App() {
   return (
     <AuthProvider>
       <SocketProvider>
-        <AppContent />
+        <MessagingProvider>
+          <AppContent />
+        </MessagingProvider>
       </SocketProvider>
     </AuthProvider>
   );

@@ -1,9 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
+const { ObjectId } = require('mongodb');
+const { getDB } = require('../db');
 
-const prisma = new PrismaClient();
 const router = express.Router();
 const { addToBlacklist } = require('../blacklist');
 
@@ -11,58 +11,58 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
 
 // Signup
 router.post('/signup', async (req, res) => {
-  const { email, password, name, role } = req.body;
-
-  if (!email || !password || !name || !role) {
-    return res.status(400).json({ error: 'Email, password, name, and role are required' });
-  }
-
-  // Validate role
-  const validRoles = ['student', 'faculty', 'alumni'];
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({ 
-      error: 'Invalid role. Role must be one of: student, faculty, or alumni' 
-    });
-  }
-
   try {
-    console.log('Signup request:', { email, name, role });
+    const { email, password, role, name, department, year } = req.body;
+    
+    // Basic validation
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (!role) {
+      return res.status(400).json({ error: 'Role is required' });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const db = getDB();
+    const usersCollection = db.collection('User');
+
+    // Check if user exists
+    const existingUser = await usersCollection.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ error: 'User already exists' });
     }
 
     // Validate password
-    if (!password || password.length < 6) {
+    if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Create user with transaction to ensure both user and profile are created
-    const user = await prisma.$transaction(async (prisma) => {
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name,
-          role,
-        },
-      });
+    // Create user with provided details
+    console.log('Creating user with data:', { email, name, role, department, year });
+    
+    const newUser = {
+      email,
+      password: hashedPassword,
+      name,
+      role,
+      department: department || '',
+      year: year || '',
+      createdAt: new Date()
+    };
 
-      const profile = await prisma.profile.create({
-        data: {
-          bio: '',
-          avatarUrl: '',
-          userId: newUser.id,
-        },
-      });
+    const result = await usersCollection.insertOne(newUser);
+    const user = { ...newUser, id: result.insertedId.toString(), _id: result.insertedId };
 
-      return {
-        ...newUser,
-        profile,
-      };
+    console.log('User created successfully:', {
+      id: user.id,
+      email: user.email,
+      role: user.role
     });
 
     // Generate JWT token
@@ -76,14 +76,15 @@ router.post('/signup', async (req, res) => {
     const { password: _, ...userWithoutPassword } = user;
     res.status(201).json({
       user: userWithoutPassword,
-      token,
+      token
     });
   } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({ 
-      error: process.env.NODE_ENV === 'development' 
-        ? `Error: ${error.message}` 
-        : 'Something went wrong during signup'
+    console.error('Request body:', JSON.stringify(req.body, null, 2));
+    
+    res.status(500).json({
+      error: 'Something went wrong during signup',
+      details: error.message
     });
   }
 });
@@ -97,24 +98,27 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true }
-    });
+    console.log('Login attempt:', { email });
+    const db = getDB();
+    const usersCollection = db.collection('User');
+    
+    const user = await usersCollection.findOne({ email });
     
     if (!user) {
+      console.log('User not found for email:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      console.log('Invalid password for user:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Login successful, create JWT token with user info
     const token = jwt.sign(
       { 
-        userId: user.id, 
+        userId: user._id.toString(), 
         role: user.role,
         email: user.email
       },
@@ -124,12 +128,15 @@ router.post('/login', async (req, res) => {
 
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user;
+    userWithoutPassword.id = user._id.toString();
+    
     res.json({
       user: userWithoutPassword,
       token,
       message: `Welcome back, ${user.name}!`
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
