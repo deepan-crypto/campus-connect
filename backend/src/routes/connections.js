@@ -35,4 +35,4 @@ router.get('/me', authenticate, (req, res) => {
   res.json({ connections: myConnections, requests: requests.filter(r => r.to === user || r.from === user) });
 });
 
-module.exports = { connectionsRouter: router };
+module.exports = router;

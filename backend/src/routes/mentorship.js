@@ -57,4 +57,4 @@ router.post('/reject/:requestId', authenticate, (req, res) => {
   res.json({ ok: true, message: 'Mentorship request rejected' });
 });
 
-module.exports = { mentorshipRouter: router };
+module.exports = router;

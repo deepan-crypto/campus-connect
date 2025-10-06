@@ -22,4 +22,4 @@ router.put('/:id', authenticate, (req, res) => {
   res.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } });
 });
 
-module.exports = { usersRouter: router };
+module.exports = router;

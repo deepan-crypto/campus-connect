@@ -18,4 +18,4 @@ router.get('/event/:id', authenticate, (req, res) => {
   res.json(ev);
 });
 
-module.exports = { feedbackRouter: router };
+module.exports = router;

@@ -1,12 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { authRouter } = require('./routes/auth');
-const { usersRouter } = require('./routes/users');
-const { eventsRouter } = require('./routes/events');
-const { connectionsRouter } = require('./routes/connections');
-const { mentorshipRouter } = require('./routes/mentorship');
-const { feedbackRouter } = require('./routes/feedback');
+const authRouter = require('./routes/auth');
+const usersRouter = require('./routes/users');
+const eventsRouter = require('./routes/events');
+const connectionsRouter = require('./routes/connections');
+const mentorshipRouter = require('./routes/mentorship');
+const feedbackRouter = require('./routes/feedback');
 
 const app = express();
 app.use(cors());

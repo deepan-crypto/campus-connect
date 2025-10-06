@@ -13,7 +13,15 @@ router.post('/signup', async (req, res) => {
   const { email, password, name, role } = req.body;
 
   if (!email || !password || !name || !role) {
-    return res.status(400).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: 'Email, password, name, and role are required' });
+  }
+
+  // Validate role
+  const validRoles = ['student', 'faculty', 'alumni'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ 
+      error: 'Invalid role. Role must be one of: student, faculty, or alumni' 
+    });
   }
 
   try {
@@ -30,7 +38,10 @@ router.post('/signup', async (req, res) => {
         name,
         role,
         profile: {
-          create: {},
+          create: {
+            bio: '',
+            avatarUrl: '',
+          },
         },
       },
       include: {
@@ -38,7 +49,18 @@ router.post('/signup', async (req, res) => {
       },
     });
 
-    res.status(201).json(user);
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Return user data without password
+    const { password: _, ...userWithoutPassword } = user;
+    res.status(201).json({
+      user: userWithoutPassword,
+      token,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong' });
   }
@@ -53,7 +75,11 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true }
+    });
+    
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -63,11 +89,24 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    // Login successful, create JWT token with user info
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        role: user.role,
+        email: user.email
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    res.json({ token });
+    // Return user data without password
+    const { password: _, ...userWithoutPassword } = user;
+    res.json({
+      user: userWithoutPassword,
+      token,
+      message: `Welcome back, ${user.name}!`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong' });
   }

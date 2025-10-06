@@ -58,4 +58,4 @@ router.post('/:id/rsvp', authenticate, (req, res) => {
   res.json({ ok: true, event: ev });
 });
 
-module.exports = { eventsRouter: router };
+module.exports = router;
