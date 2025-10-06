@@ -31,13 +31,16 @@ model Profile {
 }
 
 model Post {
-  id        String    @id @default(uuid())
-  content   String
-  createdAt DateTime  @default(now())
-  author    User      @relation(fields: [authorId], references: [id])
-  authorId  String
-  likes     Like[]
-  comments  Comment[]
+  id          String    @id @default(uuid())
+  content     String
+  imageUrl    String?
+  postType    String    @default("post") // Can be "post" or "announcement"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  author      User      @relation(fields: [authorId], references: [id])
+  authorId    String
+  likes       Like[]
+  comments    Comment[]
 }
 
 model Like {
@@ -92,4 +95,7 @@ model Event {
   tags        String[] @default([])
   createdBy   String
 }
+
+
+
 
