@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Heart, MessageCircle, Share2 } from 'lucide-react';
 import { mockPosts, mockProfiles } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
+import Comments from '../components/Comments';
 
 export function FeedPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState(mockPosts);
+  const [expandedComments, setExpandedComments] = useState<string[]>([]);
 
   const getAuthorProfile = (authorId: string) => {
     return mockProfiles.find((p) => p.id === authorId);
@@ -120,7 +122,20 @@ export function FeedPage() {
                       <span className="text-sm font-medium">{post.likesCount}</span>
                     </button>
 
-                    <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-600 transition-colors">
+                    <button 
+                      onClick={() => {
+                        setExpandedComments(prev => 
+                          prev.includes(post.id) 
+                            ? prev.filter(id => id !== post.id)
+                            : [...prev, post.id]
+                        );
+                      }}
+                      className={`flex items-center space-x-2 transition-colors ${
+                        expandedComments.includes(post.id)
+                          ? 'text-blue-600'
+                          : 'text-gray-500 hover:text-blue-600'
+                      }`}
+                    >
                       <MessageCircle size={20} />
                       <span className="text-sm font-medium">{post.commentsCount}</span>
                     </button>
@@ -130,6 +145,13 @@ export function FeedPage() {
                       <span className="text-sm font-medium">Share</span>
                     </button>
                   </div>
+
+                  {/* Comments section */}
+                  {expandedComments.includes(post.id) && (
+                    <div className="mt-4">
+                      <Comments postId={post.id} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

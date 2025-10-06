@@ -9,6 +9,7 @@ const mentorshipRouter = require('./routes/mentorship');
 const feedbackRouter = require('./routes/feedback');
 const messagesRouter = require('./routes/messages');
 const postsRouter = require('./routes/posts');
+const commentsRouter = require('./routes/comments');
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use('/api/mentorship', mentorshipRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/posts', postsRouter);
+app.use('/api/comments', commentsRouter);
 
 app.get('/', (req, res) => res.json({ ok: true, message: 'Campus Connect API' }));
 
