@@ -19,12 +19,19 @@ export default function Comments({ postId }: CommentsProps) {
   const fetchComments = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const response = await getComments(postId, page);
-      setComments(response.comments);
-      setPagination(response.pagination);
+      if (response && response.comments) {
+        setComments(response.comments);
+        setPagination(response.pagination);
+      } else {
+        setComments([]);
+        setPagination(null);
+      }
     } catch (err) {
-      setError('Failed to load comments');
       console.error('Error loading comments:', err);
+      setComments([]);
+      setPagination(null);
     } finally {
       setIsLoading(false);
     }

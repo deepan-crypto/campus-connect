@@ -32,16 +32,9 @@ export interface User {
 
 export interface Profile {
   id: string;
-  firstName: string;
-  lastName: string;
   bio?: string;
-  department?: string;
-  graduationYear?: number;
-  currentEmployer?: string;
-  profileVisibility: ProfileVisibility;
   avatarUrl?: string;
-  skills: Skill[];
-  interests: string[];
+  userId: string;
 }
 
 export interface Skill {

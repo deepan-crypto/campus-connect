@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { supabase } from '../lib/supabase';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -33,17 +32,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   
-  // Get auth token
+  // Get auth token from localStorage
   useEffect(() => {
-    const getToken = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.access_token) {
-        setToken(data.session.access_token);
-      }
-    };
-    
     if (user) {
-      getToken();
+      const token = localStorage.getItem('token');
+      if (token) {
+        setToken(token);
+      }
     }
   }, [user]);
 

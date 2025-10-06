@@ -1,4 +1,3 @@
-import { supabase } from './lib/supabase';
 import { Post } from './types';
 
 const API_URL = 'http://localhost:4000/api';
@@ -28,9 +27,8 @@ export interface PaginatedComments {
 }
 
 async function getAuthHeaders(): Promise<HeadersInit> {
-  // Get current session from Supabase
-  const session = await supabase.auth.getSession();
-  const token = session?.data?.session?.access_token;
+  // Get token from localStorage
+  const token = localStorage.getItem('token');
   
   if (!token) {
     throw new Error('No authentication token available');
@@ -132,4 +130,4 @@ export async function likePost(postId: string): Promise<{ liked: boolean; post: 
   });
 }
 
-export { supabase };
+

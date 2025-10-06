@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Profile } from '../types';
-import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -14,182 +13,227 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const API_URL = 'http://localhost:4000/api';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedProfile = localStorage.getItem('profile');
+    // Initialize auth state from localStorage token
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const response = await fetch(`${API_URL}/users/me`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
 
-    if (storedUser && storedProfile) {
-      setUser(JSON.parse(storedUser));
-      setProfile(JSON.parse(storedProfile));
-    }
-
-    setIsLoading(false);
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const mockUser: User = {
-            id: session.user.id,
-            email: session.user.email || '',
-            role: 'student',
-            emailVerified: true,
-            createdAt: session.user.created_at || new Date().toISOString(),
-          };
-          setUser(mockUser);
-          localStorage.setItem('user', JSON.stringify(mockUser));
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
+          if (response.ok) {
+            const userData = await response.json();
+            const currentUser: User = {
+              id: userData.id,
+              email: userData.email,
+              role: userData.role || 'student',
+              emailVerified: true,
+              createdAt: userData.createdAt || new Date().toISOString(),
+            };
+            setUser(currentUser);
+            setProfile(userData.profile);
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            localStorage.setItem('profile', JSON.stringify(userData.profile));
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          // Clear any stale data and token
+          localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('profile');
         }
       }
-    );
+      setIsLoading(false);
+    };
+
+    initializeAuth();
 
     return () => {
-      authListener.subscription.unsubscribe();
+      // Cleanup function if needed
     };
   }, []);
 
-  const login = async (email: string, _password: string) => {
-    let mockUser: User;
-    let mockProfile: Profile;
+  const login = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (email.includes('alumni')) {
-      mockUser = {
-        id: '1',
-        email,
-        role: 'alumni',
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+
+      const { token, user: userData } = await response.json();
+      localStorage.setItem('token', token);
+
+      // Fetch user profile
+      const profileResponse = await fetch(`${API_URL}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!profileResponse.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+
+      const profileData = await profileResponse.json();
+      
+      // Create user object
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role || 'student',
         emailVerified: true,
-        createdAt: new Date().toISOString(),
+        createdAt: userData.createdAt || new Date().toISOString(),
       };
 
-      mockProfile = {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        bio: 'Alumni working at Microsoft. Passionate about mentoring and helping students grow.',
-        department: 'Computer Science',
-        graduationYear: 2018,
-        currentEmployer: 'Microsoft',
-        profileVisibility: 'public',
-        avatarUrl: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=200',
-        skills: [
-          { id: '1', skillName: 'React', endorsements: 15 },
-          { id: '2', skillName: 'TypeScript', endorsements: 10 },
-        ],
-        interests: ['Mentorship', 'Web Development', 'Software Architecture'],
-      };
-    } else if (email.includes('faculty')) {
-      mockUser = {
-        id: '4',
-        email,
-        role: 'faculty',
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-      };
+      // Create profile object
+      const profile: Profile = profileData.profile;
 
-      mockProfile = {
-        id: '4',
-        firstName: 'Dr. Emily',
-        lastName: 'Rodriguez',
-        bio: 'Professor of Computer Science. Passionate about education and innovation.',
-        department: 'Computer Science',
-        profileVisibility: 'public',
-        skills: [
-          { id: '7', skillName: 'Algorithms', endorsements: 25 },
-          { id: '8', skillName: 'Research', endorsements: 30 },
-        ],
-        interests: ['Education', 'Research', 'Mentoring'],
-      };
-    } else {
-      mockUser = {
-        id: '3',
-        email,
-        role: 'student',
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-      };
-
-      mockProfile = {
-        id: '3',
-        firstName: 'Michael',
-        lastName: 'Chen',
-        bio: 'Data Science enthusiast. Looking to connect with fellow students.',
-        department: 'Data Science',
-        graduationYear: 2024,
-        profileVisibility: 'public',
-        skills: [
-          { id: '5', skillName: 'Python', endorsements: 7 },
-          { id: '6', skillName: 'Machine Learning', endorsements: 5 },
-        ],
-        interests: ['AI', 'Research', 'Basketball'],
-      };
+      // Update local storage and state
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('profile', JSON.stringify(profile));
+      setUser(user);
+      setProfile(profile);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw new Error(error.message || 'Failed to login');
     }
-
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    localStorage.setItem('profile', JSON.stringify(mockProfile));
-
-    setUser(mockUser);
-    setProfile(mockProfile);
-
-    await new Promise(resolve => setTimeout(resolve, 100));
   };
 
   const signup = async (
     email: string,
-    _password: string,
+    password: string,
     role: string,
     profileData: Partial<Profile>
   ) => {
-    const mockUser: User = {
-      id: Math.random().toString(36).substring(7),
-      email,
-      role: role as User['role'],
-      emailVerified: false,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      setIsLoading(true);
+      console.log('Signup attempt with:', {
+        email,
+        role,
+        name: email.split('@')[0]
+      });
+      
+      // Sign up with our backend
+      const response = await fetch(`${API_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          role,
+          name: email.split('@')[0], // Use email username as display name
+        }),
+      });
 
-    const mockProfile: Profile = {
-      id: mockUser.id,
-      firstName: profileData.firstName || '',
-      lastName: profileData.lastName || '',
-      bio: profileData.bio || '',
-      department: profileData.department,
-      graduationYear: profileData.graduationYear,
-      currentEmployer: profileData.currentEmployer,
-      profileVisibility: 'public',
-      skills: [],
-      interests: [],
-    };
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to sign up');
+      }
 
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    localStorage.setItem('profile', JSON.stringify(mockProfile));
+      // Get the token and user data
+      const { token, user: userData } = await response.json();
+      
+      if (!token || !userData) {
+        throw new Error('Invalid response from server');
+      }
 
-    setUser(mockUser);
-    setProfile(mockProfile);
+      localStorage.setItem('token', token);
+
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        emailVerified: true,
+        createdAt: userData.createdAt || new Date().toISOString(),
+      };
+
+      setUser(user);
+      setProfile(userData.profile);
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('profile', JSON.stringify(userData.profile));
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      throw new Error(error.message || 'Failed to sign up');
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('profile');
-    localStorage.removeItem('token');
-    setUser(null);
-    setProfile(null);
-    supabase.auth.signOut();
+  const logout = async () => {
+    try {
+      // Call backend logout endpoint if needed
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear local data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('profile');
+      setUser(null);
+      setProfile(null);
+    }
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
-    if (!profile) return;
+    if (!user) return;
 
-    const updatedProfile = { ...profile, ...data };
-    localStorage.setItem('profile', JSON.stringify(updatedProfile));
-    setProfile(updatedProfile);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_URL}/users/${user.id}/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      const updatedProfile = await response.json();
+      setProfile(updatedProfile);
+      localStorage.setItem('profile', JSON.stringify(updatedProfile));
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      throw new Error(error.message || 'Failed to update profile');
+    }
   };
 
   return (

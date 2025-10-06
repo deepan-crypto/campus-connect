@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
+const { isBlacklisted } = require('../blacklist');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
 
 async function authenticate(req, res, next) {
@@ -14,6 +15,10 @@ async function authenticate(req, res, next) {
     const [bearer, token] = auth.split(' ');
     if (bearer !== 'Bearer' || !token) {
       return res.status(401).json({ error: 'Invalid authorization format' });
+    }
+
+    if (isBlacklisted(token)) {
+      return res.status(401).json({ error: 'Token has been invalidated' });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);

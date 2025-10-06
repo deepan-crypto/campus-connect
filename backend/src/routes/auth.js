@@ -5,6 +5,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 const router = express.Router();
+const { addToBlacklist } = require('../blacklist');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
 
@@ -49,8 +50,9 @@ router.post('/signup', async (req, res) => {
       },
     });
 
+    // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -110,6 +112,16 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong' });
   }
+});
+
+// Logout
+router.post('/logout', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    addToBlacklist(token);
+  }
+  res.json({ message: 'Logged out successfully' });
 });
 
 module.exports = router;

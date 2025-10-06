@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { UserPlus, UserCheck, X, Search, Briefcase, GraduationCap } from 'lucide-react';
-import { mockProfiles } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { api } from '../api';
@@ -77,21 +76,14 @@ export function ConnectionsPage() {
       
       // Load connection suggestions
       const suggestionsResponse = await api('/connections/suggestions');
-      if (suggestionsResponse) {
-        setSuggestions(suggestionsResponse);
-      } else {
-        // Only use mock data if suggestions specifically fail
-        const mockConnectionData = mockProfiles.filter(p => p.id !== profile?.id).slice(0, 5);
-        setSuggestions(mockConnectionData);
-      }
+      setSuggestions(suggestionsResponse || []);
     } catch (error) {
       console.error('Error loading connections:', error);
-      // Show error message to user but keep trying with mock data as fallback
-      const mockConnectionData = mockProfiles.filter(p => p.id !== profile?.id).slice(0, 5);
-      setSuggestions(mockConnectionData);
+      // Clear all data on error
       setConnections([]);
       setPendingRequests([]);
       setSentRequests([]);
+      setSuggestions([]);
     } finally {
       setIsLoading(false);
     }
