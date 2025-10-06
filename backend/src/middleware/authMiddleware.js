@@ -21,7 +21,7 @@ async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
     
     const user = await usersCollection.findOne(

@@ -10,20 +10,24 @@ async function connectDB() {
     if (!db) {
       await client.connect();
       db = client.db();
-      console.log('Connected to MongoDB');
+      console.log('MongoDB connected successfully');
     }
     return db;
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    throw error;
+    process.exit(1);
   }
 }
 
-function getDB() {
+async function getDB() {
   if (!db) {
-    throw new Error('Database not connected. Call connectDB first.');
+    await connectDB();
   }
   return db;
 }
 
-module.exports = { connectDB, getDB };
+module.exports = {
+  connectDB,
+  getDB,
+};
+

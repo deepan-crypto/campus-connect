@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const currentUser: User = {
               id: userData.id,
               email: userData.email,
+              name: userData.name,
               role: userData.role || 'student',
               emailVerified: true,
               createdAt: userData.createdAt || new Date().toISOString(),
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
             setProfile(userData.profile);
             localStorage.setItem('user', JSON.stringify(currentUser));
-            localStorage.setItem('profile', JSON.stringify(userData.profile));
+            localStorage.setItem('profile', JSON.stringify(userData.profile || null));
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({ ...user });
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('profile', JSON.stringify(user.profile));
+      localStorage.setItem('profile', JSON.stringify(user.profile || null));
     } catch (error: any) {
       console.error('Login error:', error);
       throw new Error(error.message || 'Failed to login');

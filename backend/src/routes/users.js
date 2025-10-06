@@ -5,9 +5,39 @@ const { authenticate } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
+// Get current user (must be before /:id route)
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const db = await getDB();
+    const usersCollection = db.collection('User');
+    
+    const user = await usersCollection.findOne(
+      { _id: new ObjectId(req.user.id) },
+      { projection: { password: 0 } }
+    );
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+      year: user.year,
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
 router.get('/', authenticate, async (req, res) => {
   try {
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
     
     // Return minimal profiles
@@ -33,11 +63,22 @@ router.get('/', authenticate, async (req, res) => {
 
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
     
+    // Handle special case for "me"
+    let userId = req.params.id;
+    if (userId === 'me') {
+      userId = req.user.id;
+    }
+    
+    // Validate ObjectId format
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+    
     const user = await usersCollection.findOne(
-      { _id: new ObjectId(req.params.id) },
+      { _id: new ObjectId(userId) },
       { projection: { password: 0 } } // Exclude password
     );
     
@@ -61,7 +102,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
     
     const { name, department, year } = req.body;

@@ -1,9 +1,9 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+const { ObjectId } = require('mongodb');
+const { getDB } = require('../db');
 const { authenticate } = require('../middleware/authMiddleware');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Add a comment to a post
 router.post('/posts/:postId/comments', authenticate, async (req, res) => {
@@ -16,40 +16,52 @@ router.post('/posts/:postId/comments', authenticate, async (req, res) => {
         if (!content?.trim()) {
             return res.status(400).json({ error: 'Comment content is required' });
         }
+        
+        if (!ObjectId.isValid(postId)) {
+            return res.status(400).json({ error: 'Invalid post ID' });
+        }
+
+        const db = await getDB();
+        const postsCollection = db.collection('Post');
+        const commentsCollection = db.collection('Comment');
+        const usersCollection = db.collection('User');
 
         // Verify the post exists
-        const post = await prisma.post.findUnique({
-            where: { id: postId }
-        });
+        const post = await postsCollection.findOne({ _id: new ObjectId(postId) });
 
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
 
         // Create the comment
-        const comment = await prisma.comment.create({
-            data: {
-                content,
-                author: { connect: { id: userId } },
-                post: { connect: { id: postId } }
-            },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        role: true,
-                        profile: {
-                            select: {
-                                avatarUrl: true
-                            }
-                        }
-                    }
+        const newComment = {
+            content,
+            authorId: new ObjectId(userId),
+            postId: new ObjectId(postId),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            likes: [],
+        };
+        
+        const result = await commentsCollection.insertOne(newComment);
+        
+        const author = await usersCollection.findOne(
+            { _id: new ObjectId(userId) },
+            { projection: { password: 0 } }
+        );
+
+        res.status(201).json({
+            ...newComment,
+            id: result.insertedId,
+            author: {
+                id: author._id,
+                name: author.name,
+                role: author.role,
+                profile: {
+                    avatarUrl: author.avatarUrl || null
                 }
             }
         });
-
-        res.status(201).json(comment);
     } catch (error) {
         console.error('Error creating comment:', error);
         res.status(500).json({ error: 'Failed to create comment' });
@@ -63,50 +75,54 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
         const { page = 1, limit = 10 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        // Verify the post exists
-        const post = await prisma.post.findUnique({
-            where: { id: postId }
-        });
-
-        if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+        if (!ObjectId.isValid(postId)) {
+            return res.status(400).json({ error: 'Invalid post ID' });
         }
 
-        // Get comments with pagination
-        const comments = await prisma.comment.findMany({
-            where: { postId },
-            skip,
-            take: parseInt(limit),
-            orderBy: { createdAt: 'desc' },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        role: true,
+        const db = await getDB();
+        const commentsCollection = db.collection('Comment');
+
+        // Get comments with pagination and author info
+        const comments = await commentsCollection.aggregate([
+            { $match: { postId: new ObjectId(postId) } },
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+                $lookup: {
+                    from: 'User',
+                    localField: 'authorId',
+                    foreignField: '_id',
+                    as: 'authorInfo'
+                }
+            },
+            { $unwind: '$authorInfo' },
+            {
+                $project: {
+                    _id: 0,
+                    id: '$_id',
+                    content: 1,
+                    createdAt: 1,
+                    author: {
+                        id: '$authorInfo._id',
+                        name: '$authorInfo.name',
+                        role: '$authorInfo.role',
                         profile: {
-                            select: {
-                                avatarUrl: true
-                            }
+                            avatarUrl: '$authorInfo.avatarUrl'
                         }
                     }
                 }
             }
-        });
+        ]).toArray();
 
         // Get total count of comments
-        const totalComments = await prisma.comment.count({
-            where: { postId }
-        });
+        const totalComments = await commentsCollection.countDocuments({ postId: new ObjectId(postId) });
 
         res.json({
             comments,
-            pagination: {
-                total: totalComments,
-                pages: Math.ceil(totalComments / parseInt(limit)),
-                currentPage: parseInt(page),
-                hasMore: skip + comments.length < totalComments
-            }
+            totalPages: Math.ceil(totalComments / parseInt(limit)),
+            currentPage: parseInt(page),
+            totalComments
         });
     } catch (error) {
         console.error('Error fetching comments:', error);
@@ -114,31 +130,69 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
     }
 });
 
-// Delete a comment (only the author can delete their comment)
-router.delete('/comments/:commentId', authenticate, async (req, res) => {
+// Update a comment
+router.put('/comments/:commentId', authenticate, async (req, res) => {
     try {
         const { commentId } = req.params;
+        const { content } = req.body;
         const userId = req.user.id;
 
-        const comment = await prisma.comment.findUnique({
-            where: { id: commentId },
-            include: { author: true }
-        });
+        if (!ObjectId.isValid(commentId)) {
+            return res.status(400).json({ error: 'Invalid comment ID' });
+        }
+
+        const db = await getDB();
+        const commentsCollection = db.collection('Comment');
+
+        const comment = await commentsCollection.findOne({ _id: new ObjectId(commentId) });
 
         if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        // Only allow the comment author to delete their comment
-        if (comment.authorId !== userId) {
+        if (comment.authorId.toString() !== userId) {
+            return res.status(403).json({ error: 'Not authorized to update this comment' });
+        }
+
+        const updatedComment = await commentsCollection.findOneAndUpdate(
+            { _id: new ObjectId(commentId) },
+            { $set: { content, updatedAt: new Date() } },
+            { returnDocument: 'after' }
+        );
+
+        res.json(updatedComment.value);
+    } catch (error) {
+        console.error('Error updating comment:', error);
+        res.status(500).json({ error: 'Failed to update comment' });
+    }
+});
+
+// Delete a comment
+router.delete('/comments/:commentId', authenticate, async (req, res) => {
+    try {
+        const { commentId } = req.params;
+        const userId = req.user.id;
+
+        if (!ObjectId.isValid(commentId)) {
+            return res.status(400).json({ error: 'Invalid comment ID' });
+        }
+
+        const db = await getDB();
+        const commentsCollection = db.collection('Comment');
+
+        const comment = await commentsCollection.findOne({ _id: new ObjectId(commentId) });
+
+        if (!comment) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+
+        if (comment.authorId.toString() !== userId) {
             return res.status(403).json({ error: 'Not authorized to delete this comment' });
         }
 
-        await prisma.comment.delete({
-            where: { id: commentId }
-        });
+        await commentsCollection.deleteOne({ _id: new ObjectId(commentId) });
 
-        res.json({ message: 'Comment deleted successfully' });
+        res.status(204).send();
     } catch (error) {
         console.error('Error deleting comment:', error);
         res.status(500).json({ error: 'Failed to delete comment' });

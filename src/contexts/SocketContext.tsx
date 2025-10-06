@@ -1,170 +1,67 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import io, { Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
-interface Connection {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  requester?: {
-    id: string;
-    full_name: string;
-    avatar_url?: string;
-  };
-  receiver?: {
-    id: string;
-    full_name: string;
-    avatar_url?: string;
-  };
-}
-
 interface SocketContextType {
-  socket: null;
-  online: boolean;
-  connectionRequests: Connection[];
-  connectionUpdates: Connection[];
-  sendConnectionRequest: (userId: string) => Promise<void>;
-  respondToConnectionRequest: (connectionId: string, accept: boolean) => Promise<void>;
-  removeConnection: (connectionId: string) => Promise<void>;
-  loadConnections: () => Promise<void>;
+  socket: Socket | null;
 }
 
-const SocketContext = createContext<SocketContextType>({
-  socket: null,
-  online: true,
-  connectionRequests: [],
-  connectionUpdates: [],
-  sendConnectionRequest: async () => {},
-  respondToConnectionRequest: async () => {},
-  removeConnection: async () => {},
-  loadConnections: async () => {}
-});
+const SocketContext = createContext<SocketContextType>({ socket: null });
 
-export const useSocket = () => useContext(SocketContext);
+export const useSocket = () => {
+  return useContext(SocketContext);
+};
 
-export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
-  const [online, setOnline] = useState(true);
-  const [connectionRequests, setConnectionRequests] = useState<Connection[]>([]);
-  const [connectionUpdates, setConnectionUpdates] = useState<Connection[]>([]);
+export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) {
-      setConnectionRequests([]);
-      setConnectionUpdates([]);
-      return;
-    }
-
-    loadConnections();
-    setOnline(true);
-  }, [user]);
-
-  const loadConnections = async () => {
-    if (!user) return;
-
-    try {
-      // Use API calls instead of supabase
-      const response = await fetch(`http://localhost:4000/api/connections/me`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+    // Ensure we have a user and there's no existing socket connection
+    if (user && !socket) {
+      // Connect to the backend server
+      const newSocket = io('http://localhost:4000', {
+        // You can add authentication here if needed, e.g.,
+        // query: { token: localStorage.getItem('token') }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setConnectionRequests(data.pendingRequests || []);
-        setConnectionUpdates(data.acceptedConnections || []);
-      }
-    } catch (error) {
-      console.error('Error loading connections:', error);
-    }
-  };
-
-  const sendConnectionRequest = async (userId: string) => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`http://localhost:4000/api/connections/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ receiverId: userId }),
+      newSocket.on('connect', () => {
+        console.log('Socket.IO connected successfully:', newSocket.id);
+        // Join a room specific to the user to receive targeted events
+        if (user.id) {
+          newSocket.emit('join_room', user.id);
+          console.log(`User ${user.id} joined their socket room.`);
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to send connection request');
-      }
-
-      await loadConnections();
-    } catch (error) {
-      console.error('Error sending connection request:', error);
-      throw error;
-    }
-  };
-
-  const respondToConnectionRequest = async (connectionId: string, accept: boolean) => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`http://localhost:4000/api/connections/respond`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ connectionId, accept }),
+      newSocket.on('disconnect', () => {
+        console.log('Socket.IO disconnected.');
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to respond to connection request');
-      }
-
-      await loadConnections();
-    } catch (error) {
-      console.error('Error responding to connection request:', error);
-      throw error;
-    }
-  };
-
-  const removeConnection = async (connectionId: string) => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`http://localhost:4000/api/connections/${connectionId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      // Optional: Listen for connection errors
+      newSocket.on('connect_error', (err) => {
+        console.error('Socket.IO connection error:', err.message);
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to remove connection');
-      }
-
-      await loadConnections();
-    } catch (error) {
-      console.error('Error removing connection:', error);
-      throw error;
+      setSocket(newSocket);
+    } else if (!user && socket) {
+      // If the user logs out, disconnect the socket
+      socket.disconnect();
+      setSocket(null);
+      console.log('Socket.IO disconnected due to user logout.');
     }
-  };
+
+    // Cleanup on component unmount
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+    // The dependency array ensures this effect runs only when `user` or `socket` changes.
+  }, [user, socket]);
 
   return (
-    <SocketContext.Provider
-      value={{
-        socket: null,
-        online,
-        connectionRequests,
-        connectionUpdates,
-        sendConnectionRequest,
-        respondToConnectionRequest,
-        removeConnection,
-        loadConnections
-      }}
-    >
+    <SocketContext.Provider value={{ socket }}>
       {children}
     </SocketContext.Provider>
   );

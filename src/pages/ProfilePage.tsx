@@ -1,15 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard as Edit2, Plus, X, ThumbsUp, Briefcase, GraduationCap, Globe } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Profile } from '../types';
 
 export function ProfilePage() {
-  const { profile, updateProfile } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState(profile);
+  const [editedProfile, setEditedProfile] = useState<Partial<Profile>>({});
   const [newSkill, setNewSkill] = useState('');
   const [newInterest, setNewInterest] = useState('');
 
-  if (!profile || !editedProfile) return null;
+  useEffect(() => {
+    if (profile) {
+      setEditedProfile(profile);
+    } else if (user) {
+      setEditedProfile({
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ')[1] || '',
+        skills: [],
+        interests: [],
+      });
+    }
+  }, [profile, user]);
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   const handleSave = async () => {
     await updateProfile(editedProfile);
@@ -17,7 +33,7 @@ export function ProfilePage() {
   };
 
   const handleCancel = () => {
-    setEditedProfile(profile);
+    setEditedProfile(profile || {});
     setIsEditing(false);
   };
 
@@ -28,37 +44,40 @@ export function ProfilePage() {
         skillName: newSkill.trim(),
         endorsements: 0,
       };
-      setEditedProfile({
-        ...editedProfile,
-        skills: [...editedProfile.skills, newSkillObj],
-      });
+      setEditedProfile((prev) => ({
+        ...prev,
+        skills: [...(prev.skills || []), newSkillObj],
+      }));
       setNewSkill('');
     }
   };
 
   const removeSkill = (skillId: string) => {
-    setEditedProfile({
-      ...editedProfile,
-      skills: editedProfile.skills.filter((s) => s.id !== skillId),
-    });
+    setEditedProfile((prev) => ({
+      ...prev,
+      skills: (prev.skills || []).filter((s) => s.id !== skillId),
+    }));
   };
 
   const addInterest = () => {
     if (newInterest.trim()) {
-      setEditedProfile({
-        ...editedProfile,
-        interests: [...editedProfile.interests, newInterest.trim()],
-      });
+      setEditedProfile((prev) => ({
+        ...prev,
+        interests: [...(prev.interests || []), newInterest.trim()],
+      }));
       setNewInterest('');
     }
   };
 
   const removeInterest = (interest: string) => {
-    setEditedProfile({
-      ...editedProfile,
-      interests: editedProfile.interests.filter((i) => i !== interest),
-    });
+    setEditedProfile((prev) => ({
+      ...prev,
+      interests: (prev.interests || []).filter((i) => i !== interest),
+    }));
   };
+
+  const { firstName = '', lastName = '' } = editedProfile;
+  const avatarInitial = (firstName ? firstName[0] : '') + (lastName ? lastName[0] : '');
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -68,16 +87,15 @@ export function ProfilePage() {
         <div className="px-8 pb-8">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between -mt-16 mb-6">
             <div className="flex items-end space-x-4">
-              {profile.avatarUrl ? (
+              {editedProfile.avatarUrl ? (
                 <img
-                  src={profile.avatarUrl}
-                  alt={`${profile.firstName} ${profile.lastName}`}
+                  src={editedProfile.avatarUrl}
+                  alt={`${editedProfile.firstName} ${editedProfile.lastName}`}
                   className="w-32 h-32 rounded-full border-4 border-white object-cover"
                 />
               ) : (
                 <div className="w-32 h-32 rounded-full border-4 border-white bg-blue-600 flex items-center justify-center text-white text-4xl font-bold">
-                  {profile.firstName[0]}
-                  {profile.lastName[0]}
+                  {avatarInitial}
                 </div>
               )}
             </div>
@@ -101,7 +119,7 @@ export function ProfilePage() {
                     </label>
                     <input
                       type="text"
-                      value={editedProfile.firstName}
+                      value={editedProfile.firstName || ''}
                       onChange={(e) =>
                         setEditedProfile({ ...editedProfile, firstName: e.target.value })
                       }
@@ -114,7 +132,7 @@ export function ProfilePage() {
                     </label>
                     <input
                       type="text"
-                      value={editedProfile.lastName}
+                      value={editedProfile.lastName || ''}
                       onChange={(e) =>
                         setEditedProfile({ ...editedProfile, lastName: e.target.value })
                       }
@@ -126,25 +144,26 @@ export function ProfilePage() {
             ) : (
               <>
                 <h1 className="text-3xl font-bold text-gray-900 mb-1">
-                  {profile.firstName} {profile.lastName}
+                  {editedProfile.firstName} {editedProfile.lastName}
                 </h1>
-                <p className="text-lg text-gray-600">{profile.department}</p>
+                <p className="text-lg text-gray-600">{user.email}</p>
+                <p className="text-lg text-gray-600">{editedProfile.department}</p>
               </>
             )}
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 mb-8">
             <div className="flex items-center space-x-3 text-gray-600">
-              {profile.currentEmployer ? (
+              {editedProfile.currentEmployer ? (
                 <>
                   <Briefcase size={20} />
-                  <span>{profile.currentEmployer}</span>
+                  <span>{editedProfile.currentEmployer}</span>
                 </>
               ) : (
-                profile.graduationYear && (
+                editedProfile.graduationYear && (
                   <>
                     <GraduationCap size={20} />
-                    <span>Class of {profile.graduationYear}</span>
+                    <span>Class of {editedProfile.graduationYear}</span>
                   </>
                 )
               )}
@@ -153,7 +172,7 @@ export function ProfilePage() {
             <div className="flex items-center space-x-3 text-gray-600">
               <Globe size={20} />
               <select
-                value={editedProfile.profileVisibility}
+                value={editedProfile.profileVisibility || 'public'}
                 onChange={(e) =>
                   setEditedProfile({
                     ...editedProfile,
@@ -186,7 +205,7 @@ export function ProfilePage() {
               />
             ) : (
               <p className="text-gray-700 leading-relaxed">
-                {profile.bio || 'No bio added yet.'}
+                {editedProfile.bio || 'No bio added yet.'}
               </p>
             )}
           </div>
@@ -197,7 +216,7 @@ export function ProfilePage() {
             </div>
 
             <div className="space-y-3">
-              {editedProfile.skills.map((skill) => (
+              {(editedProfile.skills || []).map((skill) => (
                 <div
                   key={skill.id}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -247,7 +266,7 @@ export function ProfilePage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {editedProfile.interests.map((interest) => (
+              {(editedProfile.interests || []).map((interest) => (
                 <span
                   key={interest}
                   className="px-4 py-2 bg-blue-50 text-blue-700 rounded-full flex items-center space-x-2"

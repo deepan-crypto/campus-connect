@@ -27,7 +27,7 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
 
     // Check if user exists
@@ -99,7 +99,7 @@ router.post('/login', async (req, res) => {
 
   try {
     console.log('Login attempt:', { email });
-    const db = getDB();
+    const db = await getDB();
     const usersCollection = db.collection('User');
     
     const user = await usersCollection.findOne({ email });

@@ -18,7 +18,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // Be more specific in production
     methods: ["GET", "POST"]
   }
 });
@@ -26,10 +26,19 @@ const io = new Server(server, {
 app.use(cors());
 app.use(bodyParser.json());
 
-// Socket.IO connection handling - simplified for now
+// Make io accessible from routes
+app.set('io', io);
+
+// Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-  
+  console.log('A user connected:', socket.id);
+
+  // Join a room based on user ID
+  socket.on('join_room', (userId) => {
+    socket.join(userId);
+    console.log(`User ${socket.id} joined room ${userId}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
@@ -47,9 +56,6 @@ app.use('/api/posts', postsRouter);
 app.use('/api/comments', commentsRouter);
 
 app.get('/', (req, res) => res.json({ ok: true, message: 'Campus Connect API' }));
-
-// Make io accessible from routes
-app.set('io', io);
 
 const port = process.env.PORT || 4000;
 

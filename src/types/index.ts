@@ -25,6 +25,7 @@ export type DoubtStatus = 'open' | 'resolved' | 'in_progress';
 export interface User {
   id: string;
   email: string;
+  name?: string;
   role: UserRole;
   emailVerified: boolean;
   createdAt: string;
@@ -32,17 +33,22 @@ export interface User {
 
 export interface Profile {
   id: string;
+  userId: string;
   firstName?: string;
   lastName?: string;
+  email?: string;
+  role?: UserRole;
+  profilePicture?: string;
+  headline?: string;
   bio?: string;
-  avatarUrl?: string;
-  userId: string;
   department?: string;
   graduationYear?: number;
   currentEmployer?: string;
   profileVisibility?: ProfileVisibility;
   skills?: Skill[];
   interests?: string[];
+  linkedinUrl?: string;
+  githubUrl?: string;
 }
 
 export interface Skill {
