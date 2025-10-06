@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                String         @id @default(uuid())
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
   email             String         @unique
   name              String
   role              String
@@ -18,77 +18,88 @@ model User {
   posts             Post[]
   likes             Like[]
   comments          Comment[]
-  conversations     Conversation[] @relation("ConversationParticipants")
+  conversations     ConversationParticipant[]
   sentMessages      Message[]      @relation("SentMessages")
   sentConnections   Connection[]   @relation("ConnectionRequester")
   receivedConnections Connection[]  @relation("ConnectionReceiver")
 }
 
 model Profile {
-  id        String  @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   bio       String?
   avatarUrl String?
-  user      User    @relation(fields: [userId], references: [id])
-  userId    String  @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique @db.ObjectId
 }
 
 model Post {
-  id          String    @id @default(uuid())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
   title       String?
   content     String
   imageUrl    String?
-  postType    String    @default("post") // Can be "post" or "announcement"
-  visibility  String?   @default("public") // e.g., "public", "private", "faculty-only"
+  postType    String    @default("post")
+  visibility  String?   @default("public")
   tags        String[]  @default([])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   author      User      @relation(fields: [authorId], references: [id])
-  authorId    String
+  authorId    String    @db.ObjectId
   likes       Like[]
   comments    Comment[]
 }
 
 model Like {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
-  userId    String
+  userId    String   @db.ObjectId
   post      Post     @relation(fields: [postId], references: [id])
-  postId    String
+  postId    String   @db.ObjectId
 
   @@unique([userId, postId])
 }
 
 model Comment {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   content   String
   createdAt DateTime @default(now())
   author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
+  authorId  String   @db.ObjectId
   post      Post     @relation(fields: [postId], references: [id])
-  postId    String
+  postId    String   @db.ObjectId
+}
+
+model ConversationParticipant {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  role           String       @default("member")
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String       @db.ObjectId
+
+  @@unique([userId, conversationId])
 }
 
 model Conversation {
-  id           String    @id @default(uuid())
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  participants User[]    @relation("ConversationParticipants")
+  id           String                   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  participants ConversationParticipant[]
   messages     Message[]
 }
 
 model Message {
-  id             String       @id @default(uuid())
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
   content        String
   createdAt      DateTime     @default(now())
   sender         User         @relation("SentMessages", fields: [senderId], references: [id])
-  senderId       String
+  senderId       String       @db.ObjectId
   conversation   Conversation @relation(fields: [conversationId], references: [id])
-  conversationId String
+  conversationId String       @db.ObjectId
 }
 
 model Event {
-  id          String   @id @default(uuid())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String?
   eventType   String
@@ -97,19 +108,19 @@ model Event {
   endDate     DateTime?
   capacity    Int?
   bannerUrl   String?
-  tags        String[] @default([])
-  createdBy   String
+  tags        String[]  @default([])
+  createdBy   String    @db.ObjectId
 }
 
 model Connection {
-  id          String   @id @default(uuid())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   status      String   // "pending", "accepted", "rejected"
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   requester   User     @relation("ConnectionRequester", fields: [requesterId], references: [id])
-  requesterId String
+  requesterId String   @db.ObjectId
   receiver    User     @relation("ConnectionReceiver", fields: [receiverId], references: [id])
-  receiverId  String
+  receiverId  String   @db.ObjectId
 
   @@unique([requesterId, receiverId])
 }

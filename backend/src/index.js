@@ -248,5 +248,5 @@ app.get('/', (req, res) => res.json({ ok: true, message: 'Campus Connect API' })
 // Make io accessible from routes
 app.set('io', io);
 
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 4001;
 server.listen(port, () => console.log(`Backend running on http://localhost:${port}`));

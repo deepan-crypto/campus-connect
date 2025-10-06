@@ -149,17 +149,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to sign up');
+        console.error('Signup failed:', responseData);
+        throw new Error(responseData.error || 'Failed to sign up');
       }
 
-      // Get the token and user data
-      const { token, user: userData } = await response.json();
+      const { token, user: userData } = responseData;
       
       if (!token || !userData) {
+        console.error('Invalid response:', responseData);
         throw new Error('Invalid response from server');
       }
+
+      console.log('Signup successful:', { userData });
 
       localStorage.setItem('token', token);
 

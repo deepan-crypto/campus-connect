@@ -26,28 +26,43 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
+    console.log('Signup request:', { email, name, role });
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(409).json({ error: 'User already exists' });
     }
 
+    // Validate password
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        role,
-        profile: {
-          create: {
-            bio: '',
-            avatarUrl: '',
-          },
+    
+    // Create user with transaction to ensure both user and profile are created
+    const user = await prisma.$transaction(async (prisma) => {
+      const newUser = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          role,
         },
-      },
-      include: {
-        profile: true,
-      },
+      });
+
+      const profile = await prisma.profile.create({
+        data: {
+          bio: '',
+          avatarUrl: '',
+          userId: newUser.id,
+        },
+      });
+
+      return {
+        ...newUser,
+        profile,
+      };
     });
 
     // Generate JWT token
@@ -64,7 +79,12 @@ router.post('/signup', async (req, res) => {
       token,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Something went wrong' });
+    console.error('Signup error:', error);
+    res.status(500).json({ 
+      error: process.env.NODE_ENV === 'development' 
+        ? `Error: ${error.message}` 
+        : 'Something went wrong during signup'
+    });
   }
 });
 
