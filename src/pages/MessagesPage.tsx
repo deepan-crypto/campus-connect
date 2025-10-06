@@ -6,7 +6,7 @@ import { mockProfiles } from '../data/mockData';
 
 export function MessagesPage() {
   const { profile } = useAuth();
-  const { conversations, messages, sendMessage, markAsRead } = useMessaging();
+  const { conversations, messages, sendMessage, markAsRead, loadMessages } = useMessaging();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,10 +18,14 @@ export function MessagesPage() {
 
   useEffect(() => {
     if (selectedConversationId) {
+      loadMessages(selectedConversationId);
       markAsRead(selectedConversationId);
-      scrollToBottom();
     }
-  }, [selectedConversationId, messages]);
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, selectedConversationId]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const selectedMessages = selectedConversationId ? messages[selectedConversationId] || [] : [];
@@ -55,10 +59,14 @@ export function MessagesPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversationId) return;
-    sendMessage(selectedConversationId, messageInput);
-    setMessageInput('');
+    try {
+      await sendMessage(selectedConversationId, messageInput);
+      setMessageInput('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
