@@ -68,18 +68,30 @@ export function ConnectionsPage() {
     try {
       setIsLoading(true);
       const response = await api('/connections/me');
+      if (!response) {
+        throw new Error('Failed to load connections data');
+      }
       setConnections(response.connections || []);
       setPendingRequests(response.pendingRequests || []);
       setSentRequests(response.sentRequests || []);
       
       // Load connection suggestions
       const suggestionsResponse = await api('/connections/suggestions');
-      setSuggestions(suggestionsResponse || []);
+      if (suggestionsResponse) {
+        setSuggestions(suggestionsResponse);
+      } else {
+        // Only use mock data if suggestions specifically fail
+        const mockConnectionData = mockProfiles.filter(p => p.id !== profile?.id).slice(0, 5);
+        setSuggestions(mockConnectionData);
+      }
     } catch (error) {
       console.error('Error loading connections:', error);
-      // Fallback to mock data if API fails
+      // Show error message to user but keep trying with mock data as fallback
       const mockConnectionData = mockProfiles.filter(p => p.id !== profile?.id).slice(0, 5);
       setSuggestions(mockConnectionData);
+      setConnections([]);
+      setPendingRequests([]);
+      setSentRequests([]);
     } finally {
       setIsLoading(false);
     }

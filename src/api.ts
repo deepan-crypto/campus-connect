@@ -28,10 +28,17 @@ export interface PaginatedComments {
 }
 
 async function getAuthHeaders(): Promise<HeadersInit> {
+  // Get current session from Supabase
   const session = await supabase.auth.getSession();
+  const token = session?.data?.session?.access_token;
+  
+  if (!token) {
+    throw new Error('No authentication token available');
+  }
+  
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session.data.session?.access_token}`,
+    'Authorization': `Bearer ${token}`
   };
 }
 
@@ -46,6 +53,15 @@ export async function api(path: string, options: RequestInit = {}): Promise<any>
   });
 
   if (!response.ok) {
+    // Try to get error message from response
+    let errorMessage = 'An error occurred';
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.error || errorData.message || errorMessage;
+    } catch (e) {
+      // If we can't parse the error message, use status text
+      errorMessage = response.statusText || errorMessage;
+    }
     const error = await response.json();
     throw new Error(error.error || 'API request failed');
   }
