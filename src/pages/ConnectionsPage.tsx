@@ -112,17 +112,26 @@ export function ConnectionsPage() {
   });
 
   // Handle connection request
-  const handleConnect = (userId: string) => {
-    sendConnectionRequest(userId);
-    // Optimistically update UI
-    const newRequest = {
-      id: `temp-${Date.now()}`,
-      requesterId: user!.id,
-      receiverId: userId,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-    setSentRequests([...sentRequests, newRequest]);
+  const handleConnect = async (userId: string) => {
+    try {
+      const tempRequest = {
+        id: `temp-${Date.now()}`,
+        requesterId: user!.id,
+        receiverId: userId,
+        status: 'pending' as const,
+        createdAt: new Date().toISOString()
+      };
+      // Optimistically update UI
+      setSentRequests(prev => [...prev, tempRequest]);
+      
+      await sendConnectionRequest(userId);
+      // If successful, keep the optimistic update
+    } catch (error: any) {
+      console.error('Error sending connection request:', error);
+      // Revert optimistic update on error
+      setSentRequests(prev => prev.filter(req => req.id !== `temp-${Date.now()}`));
+      // You could add a toast or error message here
+    }
   };
 
   // Handle accepting a connection request

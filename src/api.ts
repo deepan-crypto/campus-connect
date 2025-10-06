@@ -62,11 +62,16 @@ export async function api(path: string, options: RequestInit = {}): Promise<any>
       // If we can't parse the error message, use status text
       errorMessage = response.statusText || errorMessage;
     }
-    const error = await response.json();
-    throw new Error(error.error || 'API request failed');
+    throw new Error(errorMessage);
   }
 
-  return response.json();
+  try {
+    const data = await response.json();
+    return data;
+  } catch (e) {
+    console.error('Error parsing response:', e);
+    throw new Error('Failed to parse server response');
+  }
 }
 
 // Comment-related API functions

@@ -41,14 +41,20 @@ export default function Comments({ postId }: CommentsProps) {
 
     try {
       setIsLoading(true);
+      setError(null); // Clear any previous errors
       const comment = await createComment(postId, newComment.trim());
+      if (!comment) {
+        throw new Error('Failed to create comment - no response from server');
+      }
       setComments(prevComments => [comment, ...prevComments]);
       setNewComment('');
       // Refresh pagination info
       const response = await getComments(postId, 1);
-      setPagination(response.pagination);
-    } catch (err) {
-      setError('Failed to post comment');
+      if (response && response.pagination) {
+        setPagination(response.pagination);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to post comment');
       console.error('Error posting comment:', err);
     } finally {
       setIsLoading(false);
