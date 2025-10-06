@@ -178,6 +178,45 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Remove connection
+  socket.on('connection:remove', async (data) => {
+    try {
+      const { connectionId } = data;
+      if (!socket.userId) {
+        socket.emit('error', { message: 'Unauthorized' });
+        return;
+      }
+      
+      // Get connection and verify user is part of it
+      const connection = await prisma.connection.findUnique({
+        where: { id: connectionId }
+      });
+      
+      if (!connection) {
+        socket.emit('error', { message: 'Connection not found' });
+        return;
+      }
+      
+      if (connection.requesterId !== socket.userId && connection.receiverId !== socket.userId) {
+        socket.emit('error', { message: 'Not authorized to remove this connection' });
+        return;
+      }
+      
+      // Delete the connection
+      await prisma.connection.delete({
+        where: { id: connectionId }
+      });
+      
+      // Notify both users
+      const otherUserId = connection.requesterId === socket.userId ? connection.receiverId : connection.requesterId;
+      socket.emit('connection:removed', { connectionId });
+      io.to(`user:${otherUserId}`).emit('connection:removed', { connectionId });
+    } catch (err) {
+      console.error('Connection removal error:', err);
+      socket.emit('error', { message: 'Failed to remove connection' });
+    }
+  });
+  
   // Disconnection
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
