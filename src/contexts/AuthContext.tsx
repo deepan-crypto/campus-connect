@@ -13,6 +13,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -24,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const response = await fetch(`http://localhost:4000/api/users/me`, {
+          const response = await fetch(`${apiBaseUrl}/api/users/me`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const apiUrl = `http://localhost:4000/api/auth/login`;
+      const apiUrl = `${apiBaseUrl}/api/auth/login`;
       console.log("Attempting to log in to:", apiUrl); // Debugging line
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -112,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       console.log('Signup request payload:', { email, role, name, department, year });
 
-      const response = await fetch(`http://localhost:4000/api/auth/signup`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        await fetch(`http://localhost:4000/api/auth/logout`, {
+        await fetch(`${apiBaseUrl}/api/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -185,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`http://localhost:4000/api/users/${user.id}/profile`, {
+      const response = await fetch(`${apiBaseUrl}/api/users/${user.id}/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
