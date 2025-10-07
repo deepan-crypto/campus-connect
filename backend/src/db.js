@@ -1,15 +1,15 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
 
-const uri = process.env.DATABASE_URL;
-
-if (!uri) {
-  throw new Error('Please add your Mongo URI to your environment variables');
-}
-
 let cachedClient = null;
 let cachedDb = null;
 
 async function connectToDatabase() {
+  const uri = process.env.DATABASE_URL;
+
+  if (!uri) {
+    throw new Error('Please add your Mongo URI to your environment variables');
+  }
+
   // If we have a cached connection, reuse it
   if (cachedClient && cachedDb) {
     return cachedDb;
