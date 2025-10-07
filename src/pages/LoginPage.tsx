@@ -2,11 +2,9 @@ import { useState } from 'react';
 import { CircleUser as UserCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-interface LoginPageProps {
-  onNavigate: (page: string) => void;
-}
+interface LoginPageProps {}
 
-export function LoginPage({ onNavigate }: LoginPageProps) {
+export function LoginPage({}: LoginPageProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,8 +26,6 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       if (isLogin) {
         // Simple login with email and password
         await login(email, password);
-        // Always navigate to feed page after login
-        onNavigate('feed');
       } else {
         if (!email || !password || !role || !name) {
           setError('Please fill in all required fields: email, password, name, and role.');
@@ -37,9 +33,6 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           return;
         }
         await signup(email, password, role, name, department, year);
-        
-        // Always navigate to feed page after signup
-        onNavigate('feed');
       }
     } catch (err) {
       setError('Authentication failed. Please try again.');

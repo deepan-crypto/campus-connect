@@ -85,7 +85,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <LoginPage onNavigate={setCurrentPage} />;
+    return <LoginPage />;
   }
 
   const renderPage = () => {
