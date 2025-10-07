@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const uri = process.env.DATABASE_URL;
 
@@ -16,7 +16,14 @@ async function connectToDatabase() {
   }
 
   // If not, create a new connection
-  const client = new MongoClient(uri);
+  const client = new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+    tls: true,
+  });
 
   try {
     await client.connect();
