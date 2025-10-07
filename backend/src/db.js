@@ -51,9 +51,7 @@ async function connectToDatabase() {
     retryWrites: true,
     retryReads: true,
     monitorCommands: true,
-    heartbeatFrequencyMS: 10000,
-    appName: "campus-connect",
-    driverInfo: { name: "nodejs-mongodb", version: "6.0" }
+    heartbeatFrequencyMS: 10000
   });
 
   try {
