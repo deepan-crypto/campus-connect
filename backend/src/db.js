@@ -10,12 +10,30 @@ async function connectToDatabase() {
     throw new Error('Please add your Mongo URI to your environment variables');
   }
 
-  // If we have a cached connection, reuse it
+  // If we have a cached connection and it's connected, reuse it
   if (cachedClient && cachedDb) {
-    return cachedDb;
+    try {
+      // Check if connection is still alive
+      await cachedClient.db().command({ ping: 1 });
+      return cachedDb;
+    } catch (error) {
+      // Connection is dead, clean up
+      console.log('Cached connection is dead, creating new connection...');
+      try {
+        await cachedClient.close();
+      } catch (e) {
+        console.error('Error closing dead connection:', e);
+      }
+      cachedClient = null;
+      cachedDb = null;
+    }
   }
 
   // If not, create a new connection
+  // Parse the connection string to get the host
+  const parsedUri = new URL(uri);
+  const host = parsedUri.host;
+
   const client = new MongoClient(uri, {
     serverApi: {
       version: ServerApiVersion.v1,
@@ -23,15 +41,19 @@ async function connectToDatabase() {
       deprecationErrors: true,
     },
     ssl: true,
-    sslValidate: true,
+    tlsAllowInvalidCertificates: false,
+    tlsAllowInvalidHostnames: false,
+    directConnection: false,
     maxPoolSize: 1,
     minPoolSize: 0,
-    maxIdleTimeMS: 5000,
-    serverSelectionTimeoutMS: 30000,
+    serverSelectionTimeoutMS: 5000,
     connectTimeoutMS: 10000,
     retryWrites: true,
     retryReads: true,
-    w: "majority"
+    monitorCommands: true,
+    heartbeatFrequencyMS: 10000,
+    appName: "campus-connect",
+    driverInfo: { name: "nodejs-mongodb", version: "6.0" }
   });
 
   try {
