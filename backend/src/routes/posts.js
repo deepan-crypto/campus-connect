@@ -16,8 +16,8 @@ router.post('/', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
-        const usersCollection = db.collection('User');
+        const postsCollection = db.collection('posts');
+        const usersCollection = db.collection('users');
 
         const newPost = {
             title,
@@ -68,7 +68,7 @@ router.get('/', authenticate, async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
+        const postsCollection = db.collection('posts');
 
         const posts = await postsCollection.aggregate([
             { $sort: { createdAt: -1 } },
@@ -76,7 +76,7 @@ router.get('/', authenticate, async (req, res) => {
             { $limit: parseInt(limit) },
             {
                 $lookup: {
-                    from: 'User',
+                    from: 'users',
                     localField: 'authorId',
                     foreignField: '_id',
                     as: 'authorInfo'
@@ -85,7 +85,7 @@ router.get('/', authenticate, async (req, res) => {
             { $unwind: '$authorInfo' },
             {
                 $lookup: {
-                    from: 'Comment',
+                    from: 'comments',
                     localField: '_id',
                     foreignField: 'postId',
                     as: 'comments'
@@ -140,13 +140,13 @@ router.get('/:id', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
+        const postsCollection = db.collection('posts');
 
         const post = await postsCollection.aggregate([
             { $match: { _id: new ObjectId(id) } },
             {
                 $lookup: {
-                    from: 'User',
+                    from: 'users',
                     localField: 'authorId',
                     foreignField: '_id',
                     as: 'authorInfo'
@@ -155,10 +155,10 @@ router.get('/:id', authenticate, async (req, res) => {
             { $unwind: '$authorInfo' },
             {
                 $lookup: {
-                    from: 'Comment',
+                    from: 'comments',
                     localField: '_id',
                     foreignField: 'postId',
-                    as: 'comments'
+                    as: 'commentsInfo'
                 }
             },
             {
@@ -180,7 +180,7 @@ router.get('/:id', authenticate, async (req, res) => {
                         profile: '$authorInfo.profile'
                     },
                     likes: { $size: '$likes' },
-                    comments: { $size: '$comments' },
+                    comments: { $size: '$commentsInfo' },
                     isLiked: { $in: [new ObjectId(req.user.id), '$likes'] }
                 }
             }
@@ -197,6 +197,51 @@ router.get('/:id', authenticate, async (req, res) => {
     }
 });
 
+// Update a post
+router.put('/:id', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, content, imageUrl, postType, visibility, tags } = req.body;
+        const userId = req.user.id;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid post ID' });
+        }
+
+        const db = await getDB();
+        const postsCollection = db.collection('posts');
+
+        const post = await postsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        // Check if the authenticated user is the author of the post
+        if (post.authorId.toString() !== userId) {
+            return res.status(403).json({ error: 'Not authorized to update this post' });
+        }
+
+        const updatedPost = {
+            ...post,
+            title,
+            content,
+            imageUrl,
+            postType: postType || post.postType,
+            visibility: visibility || post.visibility,
+            tags: tags || post.tags,
+            updatedAt: new Date(),
+        };
+
+        await postsCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedPost });
+
+        res.json(updatedPost);
+    } catch (error) {
+        console.error('Error updating post:', error);
+        res.status(500).json({ error: 'Failed to update post' });
+    }
+});
+
 // Like a post
 router.post('/:id/like', authenticate, async (req, res) => {
     try {
@@ -208,22 +253,23 @@ router.post('/:id/like', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
+        const postsCollection = db.collection('posts');
 
-        const result = await postsCollection.updateOne(
-            { _id: new ObjectId(id) },
-            { $addToSet: { likes: new ObjectId(userId) } }
-        );
+        const post = await postsCollection.findOne({ _id: new ObjectId(id) });
 
-        if (result.modifiedCount === 0) {
-            // If no document was modified, it might be because the user already liked the post
-            // or the post doesn't exist. We can check if the user is already in the likes array.
-            const post = await postsCollection.findOne({ _id: new ObjectId(id), likes: new ObjectId(userId) });
-            if (post) {
-                return res.status(200).json({ message: 'Post already liked' });
-            }
-            return res.status(404).json({ error: 'Post not found or already liked' });
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
         }
+
+        const alreadyLiked = post.likes.includes(userId);
+
+        if (alreadyLiked) {
+            return res.status(400).json({ error: 'Post already liked' });
+        }
+
+        post.likes.push(userId);
+
+        await postsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { likes: post.likes } });
 
         res.status(200).json({ message: 'Post liked successfully' });
     } catch (error) {
@@ -243,21 +289,104 @@ router.post('/:id/unlike', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
+        const postsCollection = db.collection('posts');
 
-        const result = await postsCollection.updateOne(
-            { _id: new ObjectId(id) },
-            { $pull: { likes: new ObjectId(userId) } }
-        );
+        const post = await postsCollection.findOne({ _id: new ObjectId(id) });
 
-        if (result.modifiedCount === 0) {
-            return res.status(404).json({ error: 'Post not found or not liked by user' });
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
         }
+
+        const alreadyLiked = post.likes.includes(userId);
+
+        if (!alreadyLiked) {
+            return res.status(400).json({ error: 'Post not liked yet' });
+        }
+
+        post.likes = post.likes.filter(like => like !== userId);
+
+        await postsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { likes: post.likes } });
 
         res.status(200).json({ message: 'Post unliked successfully' });
     } catch (error) {
         console.error('Error unliking post:', error);
         res.status(500).json({ error: 'Failed to unlike post' });
+    }
+});
+
+// Get all likes for a post
+router.get('/:id/likes', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid post ID' });
+        }
+
+        const db = await getDB();
+        const postsCollection = db.collection('posts');
+
+        const post = await postsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        const usersCollection = db.collection('users');
+        const likedUsers = await usersCollection.find({ _id: { $in: post.likes.map(id => new ObjectId(id)) } }).project({ password: 0 }).toArray();
+
+        res.json(likedUsers);
+    } catch (error) {
+        console.error('Error fetching likes:', error);
+        res.status(500).json({ error: 'Failed to fetch likes' });
+    }
+});
+
+// Get comments for a post
+router.get('/:id/comments', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid post ID' });
+        }
+
+        const db = await getDB();
+        const commentsCollection = db.collection('comments');
+
+        const comments = await commentsCollection.aggregate([
+            { $match: { postId: new ObjectId(id) } },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'authorId',
+                    foreignField: '_id',
+                    as: 'authorInfo'
+                }
+            },
+            { $unwind: '$authorInfo' },
+            {
+                $project: {
+                    _id: 0,
+                    id: '$_id',
+                    content: 1,
+                    createdAt: 1,
+                    author: {
+                        id: '$authorInfo._id',
+                        name: '$authorInfo.name',
+                        email: '$authorInfo.email',
+                        role: '$authorInfo.role',
+                        profile: '$authorInfo.profile'
+                    }
+                }
+            }
+        ]).toArray();
+
+        res.json(comments);
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({ error: 'Failed to fetch comments' });
     }
 });
 
@@ -272,8 +401,8 @@ router.delete('/:id', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
-        const commentsCollection = db.collection('Comment');
+        const postsCollection = db.collection('posts');
+        const commentsCollection = db.collection('comments');
 
         const post = await postsCollection.findOne({ _id: new ObjectId(id) });
 
@@ -294,257 +423,6 @@ router.delete('/:id', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Error deleting post:', error);
         res.status(500).json({ error: 'Failed to delete post' });
-    }
-});
-
-module.exports = router;
-
-// Get all posts with pagination
-router.get('/', authenticate, async (req, res) => {
-    try {
-        const { page = 1, limit = 10 } = req.query;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-
-        const posts = await prisma.post.findMany({
-            skip,
-            take: parseInt(limit),
-            orderBy: {
-                createdAt: 'desc'
-            },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        role: true,
-                        profile: true
-                    }
-                },
-                likes: {
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                name: true
-                            }
-                        }
-                    }
-                },
-                comments: {
-                    include: {
-                        author: {
-                            select: {
-                                id: true,
-                                name: true,
-                                profile: true
-                            }
-                        }
-                    },
-                    orderBy: {
-                        createdAt: 'desc'
-                    }
-                },
-                _count: {
-                    select: {
-                        likes: true,
-                        comments: true
-                    }
-                }
-            }
-        });
-
-        const total = await prisma.post.count();
-
-        res.json({
-            posts,
-            pagination: {
-                total,
-                pages: Math.ceil(total / parseInt(limit)),
-                currentPage: parseInt(page)
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching posts:', error);
-        res.status(500).json({ error: 'Failed to fetch posts' });
-    }
-});
-
-// Like/Unlike a post
-router.post('/:postId/like', authenticate, async (req, res) => {
-    try {
-        const { postId } = req.params;
-        const userId = req.user.id;
-
-        // Check if user already liked the post
-        const existingLike = await prisma.like.findUnique({
-            where: {
-                userId_postId: {
-                    userId,
-                    postId
-                }
-            }
-        });
-
-        if (existingLike) {
-            // Unlike the post
-            await prisma.like.delete({
-                where: {
-                    userId_postId: {
-                        userId,
-                        postId
-                    }
-                }
-            });
-        } else {
-            // Like the post
-            await prisma.like.create({
-                data: {
-                    userId,
-                    postId
-                }
-            });
-        }
-
-        // Get updated post
-        const updatedPost = await prisma.post.findUnique({
-            where: { id: postId },
-            include: {
-                likes: {
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                name: true
-                            }
-                        }
-                    }
-                },
-                _count: {
-                    select: {
-                        likes: true
-                    }
-                }
-            }
-        });
-
-        res.json({
-            liked: !existingLike,
-            post: updatedPost
-        });
-    } catch (error) {
-        console.error('Error toggling like:', error);
-        res.status(500).json({ error: 'Failed to toggle like' });
-    }
-});
-
-// Add a comment to a post
-router.post('/:postId/comments', authenticate, async (req, res) => {
-    try {
-        const { postId } = req.params;
-        const { content } = req.body;
-        const userId = req.user.id;
-
-        if (!content) {
-            return res.status(400).json({ error: 'Comment content is required' });
-        }
-
-        const comment = await prisma.comment.create({
-            data: {
-                content,
-                authorId: userId,
-                postId
-            },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        profile: true
-                    }
-                }
-            }
-        });
-
-        res.status(201).json(comment);
-    } catch (error) {
-        console.error('Error creating comment:', error);
-        res.status(500).json({ error: 'Failed to create comment' });
-    }
-});
-
-// Get comments for a post
-router.get('/:postId/comments', authenticate, async (req, res) => {
-    try {
-        const { postId } = req.params;
-        const { page = 1, limit = 10 } = req.query;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-
-        const comments = await prisma.comment.findMany({
-            where: {
-                postId
-            },
-            skip,
-            take: parseInt(limit),
-            orderBy: {
-                createdAt: 'desc'
-            },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        name: true,
-                        profile: true
-                    }
-                }
-            }
-        });
-
-        const total = await prisma.comment.count({
-            where: { postId }
-        });
-
-        res.json({
-            comments,
-            pagination: {
-                total,
-                pages: Math.ceil(total / parseInt(limit)),
-                currentPage: parseInt(page)
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching comments:', error);
-        res.status(500).json({ error: 'Failed to fetch comments' });
-    }
-});
-
-// Delete a comment
-router.delete('/comments/:commentId', authenticate, async (req, res) => {
-    try {
-        const { commentId } = req.params;
-        const userId = req.user.id;
-
-        // Check if user is the author of the comment
-        const comment = await prisma.comment.findUnique({
-            where: { id: commentId }
-        });
-
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found' });
-        }
-
-        if (comment.authorId !== userId) {
-            return res.status(403).json({ error: 'Not authorized to delete this comment' });
-        }
-
-        await prisma.comment.delete({
-            where: { id: commentId }
-        });
-
-        res.json({ message: 'Comment deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting comment:', error);
-        res.status(500).json({ error: 'Failed to delete comment' });
     }
 });
 

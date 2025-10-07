@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/me', authenticate, async (req, res) => {
   try {
     const db = await getDB();
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
     
     const user = await usersCollection.findOne(
       { _id: new ObjectId(req.user.id) },
@@ -38,7 +38,7 @@ router.get('/me', authenticate, async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const db = await getDB();
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
     
     // Return minimal profiles
     const users = await usersCollection.find({}, {
@@ -64,7 +64,7 @@ router.get('/', authenticate, async (req, res) => {
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const db = await getDB();
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
     
     // Handle special case for "me"
     let userId = req.params.id;
@@ -103,7 +103,7 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const db = await getDB();
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
     
     const { name, department, year } = req.body;
     
