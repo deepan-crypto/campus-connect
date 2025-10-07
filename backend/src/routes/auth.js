@@ -7,7 +7,12 @@ const { getDB } = require('../db');
 const router = express.Router();
 const { addToBlacklist } = require('../blacklist');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("FATAL ERROR: JWT_SECRET is not defined in environment variables.");
+  // In a real app, you might want to exit the process
+  // process.exit(1); 
+}
 
 // Signup
 router.post('/signup', async (req, res) => {
@@ -57,25 +62,34 @@ router.post('/signup', async (req, res) => {
     };
 
     const result = await usersCollection.insertOne(newUser);
-    const user = { ...newUser, id: result.insertedId.toString(), _id: result.insertedId };
+    const userId = result.insertedId.toString();
 
     console.log('User created successfully:', {
-      id: user.id,
-      email: user.email,
-      role: user.role
+      id: userId,
+      email: newUser.email,
+      role: newUser.role
     });
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: userId, email: newUser.email, role: newUser.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     // Return user data without password
-    const { password: _, ...userWithoutPassword } = user;
+    const userForResponse = {
+      id: userId,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+      department: newUser.department,
+      year: newUser.year,
+      createdAt: newUser.createdAt
+    };
+
     res.status(201).json({
-      user: userWithoutPassword,
+      user: userForResponse,
       token
     });
   } catch (error) {
@@ -112,11 +126,12 @@ router.post('/login', async (req, res) => {
       console.log('Invalid password for user:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    const userId = user._id.toString();
 
     // Login successful, create JWT token with user info
     const token = jwt.sign(
       { 
-        userId: user._id.toString(), 
+        userId: userId, 
         role: user.role,
         email: user.email
       },
@@ -126,7 +141,7 @@ router.post('/login', async (req, res) => {
 
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user;
-    userWithoutPassword.id = user._id.toString();
+    userWithoutPassword.id = userId;
     
     res.json({
       user: userWithoutPassword,
