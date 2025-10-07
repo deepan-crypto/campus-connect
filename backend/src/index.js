@@ -12,7 +12,6 @@ const feedbackRouter = require('./routes/feedback');
 const messagesRouter = require('./routes/messages');
 const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
-const { connectDB } = require('./db');
 
 const app = express();
 const server = http.createServer(app);
@@ -73,12 +72,4 @@ app.get('/', (req, res) => res.json({ ok: true, message: 'Campus Connect API' })
 
 const port = process.env.PORT || 4000;
 
-// Connect to MongoDB before starting server
-connectDB()
-  .then(() => {
-    server.listen(port, () => console.log(`Backend running on http://localhost:${port}`));
-  })
-  .catch((error) => {
-    console.error('Failed to connect to MongoDB:', error);
-    process.exit(1);
-  });
+server.listen(port, () => console.log(`Backend running on http://localhost:${port}`));
