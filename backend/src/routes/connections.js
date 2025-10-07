@@ -1,104 +1,206 @@
 const express = require('express');
 const { authenticate } = require('../middleware/authMiddleware');
-const { PrismaClient } = require('@prisma/client');
+const { getDB } = require('../db');
+const { ObjectId } = require('mongodb');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Helper to project user fields
+const userProjection = {
+  id: '$_id',
+  _id: 0,
+  name: 1,
+  email: 1,
+  role: 1,
+  profile: 1,
+};
 
 // Get my connections and connection requests
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const db = await getDB();
+    const userId = new ObjectId(req.user.id);
 
-    // Get accepted connections
-    const acceptedConnections = await prisma.connection.findMany({
-      where: {
-        OR: [
-          { requesterId: userId, status: 'accepted' },
-          { receiverId: userId, status: 'accepted' }
-        ]
-      },
-      include: {
-        requester: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            profile: true
-          }
+    // Aggregation pipeline to fetch connections and populate user details
+    const pipeline = (status, side) => ([
+      {
+        $match: {
+          [side.field]: userId,
+          status: status,
         },
-        receiver: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            profile: true
-          }
-        }
-      }
-    });
-
-    // Get incoming pending requests
-    const pendingRequests = await prisma.connection.findMany({
-      where: {
-        receiverId: userId,
-        status: 'pending'
       },
-      include: {
-        requester: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            profile: true
-          }
-        }
-      }
-    });
-
-    // Get outgoing pending requests
-    const sentRequests = await prisma.connection.findMany({
-      where: {
-        requesterId: userId,
-        status: 'pending'
+      {
+        $lookup: {
+          from: 'users',
+          localField: side.populate,
+          foreignField: '_id',
+          as: 'userDetails',
+        },
       },
-      include: {
-        receiver: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            profile: true
-          }
-        }
-      }
-    });
+      { $unwind: '$userDetails' },
+      {
+        $project: {
+          id: '$_id',
+          status: 1,
+          createdAt: 1,
+          user: {
+            id: '$userDetails._id',
+            name: '$userDetails.name',
+            email: '$userDetails.email',
+            role: '$userDetails.role',
+            profile: '$userDetails.profile',
+          },
+        },
+      },
+    ]);
 
-    // Format connections for client
-    const formattedConnections = acceptedConnections.map(conn => {
-      const otherUser = conn.requesterId === userId ? conn.receiver : conn.requester;
-      return {
-        id: conn.id,
-        user: otherUser,
-        status: conn.status,
-        createdAt: conn.createdAt
-      };
-    });
+    const acceptedAsRequester = await db.collection('connections').aggregate(pipeline('accepted', { field: 'requesterId', populate: 'receiverId' })).toArray();
+    const acceptedAsReceiver = await db.collection('connections').aggregate(pipeline('accepted', { field: 'receiverId', populate: 'requesterId' })).toArray();
+    const formattedConnections = [...acceptedAsRequester, ...acceptedAsReceiver];
+
+    const pendingRequests = await db.collection('connections').aggregate(pipeline('pending', { field: 'receiverId', populate: 'requesterId' })).toArray();
+    const sentRequests = await db.collection('connections').aggregate(pipeline('pending', { field: 'requesterId', populate: 'receiverId' })).toArray();
 
     res.json({
       connections: formattedConnections,
       pendingRequests,
-      sentRequests
+      sentRequests,
     });
   } catch (error) {
     console.error('Error fetching connections:', error);
     res.status(500).json({ error: 'Failed to fetch connections' });
   }
 });
+
+// Send a connection request
+router.post('/request/:receiverId', authenticate, async (req, res) => {
+  try {
+    const db = await getDB();
+    const requesterId = new ObjectId(req.user.id);
+    const receiverId = new ObjectId(req.params.receiverId);
+
+    if (requesterId.equals(receiverId)) {
+      return res.status(400).json({ error: 'You cannot connect with yourself.' });
+    }
+
+    // Check if a connection already exists
+    const existingConnection = await db.collection('connections').findOne({
+      $or: [
+        { requesterId, receiverId },
+        { requesterId: receiverId, receiverId: requesterId },
+      ],
+    });
+
+    if (existingConnection) {
+      return res.status(400).json({ error: 'A connection or request already exists.' });
+    }
+
+    const newRequest = {
+      requesterId,
+      receiverId,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await db.collection('connections').insertOne(newRequest);
+    
+    // In a real app, you'd emit a notification to the receiver
+    // const io = req.app.get('io');
+    // io.to(receiverId.toString()).emit('new_connection_request', result.ops[0]);
+
+    res.status(201).json(result.ops[0]);
+  } catch (error) {
+    console.error('Error sending connection request:', error);
+    res.status(500).json({ error: 'Failed to send connection request' });
+  }
+});
+
+// Accept a connection request
+router.post('/accept/:requestId', authenticate, async (req, res) => {
+  try {
+    const db = await getDB();
+    const userId = new ObjectId(req.user.id);
+    const requestId = new ObjectId(req.params.requestId);
+
+    const request = await db.collection('connections').findOne({ _id: requestId });
+
+    if (!request || !request.receiverId.equals(userId) || request.status !== 'pending') {
+      return res.status(404).json({ error: 'Connection request not found or you are not the receiver.' });
+    }
+
+    const result = await db.collection('connections').updateOne(
+      { _id: requestId },
+      { $set: { status: 'accepted', updatedAt: new Date() } }
+    );
+
+    if (result.modifiedCount === 0) {
+        return res.status(404).json({ error: 'Could not accept the request.' });
+    }
+
+    const updatedRequest = await db.collection('connections').findOne({ _id: requestId });
+
+    // In a real app, you'd emit a notification to the requester
+    // const io = req.app.get('io');
+    // io.to(request.requesterId.toString()).emit('connection_request_accepted', updatedRequest);
+
+    res.json(updatedRequest);
+  } catch (error) {
+    console.error('Error accepting connection request:', error);
+    res.status(500).json({ error: 'Failed to accept connection request' });
+  }
+});
+
+// Reject a connection request
+router.post('/reject/:requestId', authenticate, async (req, res) => {
+  try {
+    const db = await getDB();
+    const userId = new ObjectId(req.user.id);
+    const requestId = new ObjectId(req.params.requestId);
+
+    const request = await db.collection('connections').findOne({ _id: requestId });
+
+    if (!request || !request.receiverId.equals(userId) || request.status !== 'pending') {
+      return res.status(404).json({ error: 'Connection request not found or you are not the receiver.' });
+    }
+
+    await db.collection('connections').deleteOne({ _id: requestId });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error rejecting connection request:', error);
+    res.status(500).json({ error: 'Failed to reject connection request' });
+  }
+});
+
+// Get suggestions for connections
+router.get('/suggestions', authenticate, async (req, res) => {
+    try {
+        const db = await getDB();
+        const userId = new ObjectId(req.user.id);
+
+        // Get IDs of users the current user is already connected with or has a pending request with
+        const existingConnections = await db.collection('connections').find({
+            $or: [{ requesterId: userId }, { receiverId: userId }]
+        }).toArray();
+
+        const connectedUserIds = existingConnections.flatMap(conn => [conn.requesterId, conn.receiverId]);
+        const excludedIds = [...new Set([userId, ...connectedUserIds])];
+
+        // Find users who are not the current user and not already connected
+        const suggestions = await db.collection('users').find({
+            _id: { $nin: excludedIds }
+        }).project(userProjection).limit(10).toArray();
+
+        res.json(suggestions);
+    } catch (error) {
+        console.error('Error fetching connection suggestions:', error);
+        res.status(500).json({ error: 'Failed to fetch suggestions' });
+    }
+});
+
+module.exports = router;
+
 
 // Send a connection request
 router.post('/request', authenticate, async (req, res) => {

@@ -22,9 +22,9 @@ router.post('/posts/:postId/comments', authenticate, async (req, res) => {
         }
 
         const db = await getDB();
-        const postsCollection = db.collection('Post');
-        const commentsCollection = db.collection('Comment');
-        const usersCollection = db.collection('User');
+        const postsCollection = db.collection('posts');
+        const commentsCollection = db.collection('comments');
+        const usersCollection = db.collection('users');
 
         // Verify the post exists
         const post = await postsCollection.findOne({ _id: new ObjectId(postId) });
@@ -90,7 +90,7 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
             { $limit: parseInt(limit) },
             {
                 $lookup: {
-                    from: 'User',
+                    from: 'users',
                     localField: 'authorId',
                     foreignField: '_id',
                     as: 'authorInfo'

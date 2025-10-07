@@ -28,7 +28,7 @@ router.post('/signup', async (req, res) => {
     }
 
     const db = await getDB();
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
 
     // Check if user exists
     const existingUser = await usersCollection.findOne({ email });
@@ -98,12 +98,10 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    console.log('Login attempt:', { email });
     const db = await getDB();
-    const usersCollection = db.collection('User');
-    
+    const usersCollection = db.collection('users');
     const user = await usersCollection.findOne({ email });
-    
+
     if (!user) {
       console.log('User not found for email:', email);
       return res.status(401).json({ error: 'Invalid credentials' });

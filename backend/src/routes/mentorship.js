@@ -21,7 +21,7 @@ router.post('/request', authenticate, async (req, res) => {
 
     const db = await getDB();
     const mentorshipRequestsCollection = db.collection('mentorshipRequests');
-    const usersCollection = db.collection('User');
+    const usersCollection = db.collection('users');
 
     // Check if mentor exists and is a mentor/admin
     const mentor = await usersCollection.findOne({ 
