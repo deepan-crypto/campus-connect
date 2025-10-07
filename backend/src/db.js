@@ -23,6 +23,10 @@ async function connectToDatabase() {
       deprecationErrors: true,
     },
     tls: true,
+    maxPoolSize: 10,
+    minPoolSize: 0,
+    maxIdleTimeMS: 30000,
+    serverSelectionTimeoutMS: 5000,
   });
 
   try {
