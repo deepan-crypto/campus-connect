@@ -23,8 +23,18 @@ const io = new Server(server, {
   }
 });
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+];
+
+// In production, allow all vercel.app subdomains
+if (process.env.NODE_ENV === 'production') {
+  allowedOrigins.push(/https:\/\/.*\.vercel\.app$/);
+}
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Allow your frontend origin
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
