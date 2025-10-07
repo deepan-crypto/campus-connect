@@ -22,11 +22,16 @@ async function connectToDatabase() {
       strict: true,
       deprecationErrors: true,
     },
-    tls: true,
-    maxPoolSize: 10,
+    ssl: true,
+    sslValidate: true,
+    maxPoolSize: 1,
     minPoolSize: 0,
-    maxIdleTimeMS: 30000,
-    serverSelectionTimeoutMS: 5000,
+    maxIdleTimeMS: 5000,
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 10000,
+    retryWrites: true,
+    retryReads: true,
+    w: "majority"
   });
 
   try {
