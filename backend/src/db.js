@@ -1,33 +1,46 @@
 const { MongoClient } = require('mongodb');
 
-const uri = process.env.DATABASE_URL || 'mongodb://localhost:27017/campus-connect';
-const client = new MongoClient(uri);
+const uri = process.env.DATABASE_URL;
 
-let db = null;
+if (!uri) {
+  throw new Error('Please add your Mongo URI to your environment variables');
+}
 
-async function connectDB() {
+let cachedClient = null;
+let cachedDb = null;
+
+async function connectToDatabase() {
+  // If we have a cached connection, reuse it
+  if (cachedClient && cachedDb) {
+    return cachedDb;
+  }
+
+  // If not, create a new connection
+  const client = new MongoClient(uri);
+
   try {
-    if (!db) {
-      await client.connect();
-      db = client.db();
-      console.log('MongoDB connected successfully');
-    }
+    await client.connect();
+    const db = client.db();
+
+    // Cache the connection for future requests
+    cachedClient = client;
+    cachedDb = db;
+
+    console.log('MongoDB connected successfully');
     return db;
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    process.exit(1);
+    // Do not exit the process, just throw the error
+    throw error;
   }
 }
 
+// Renaming getDB to be more explicit for reuse
 async function getDB() {
-  if (!db) {
-    await connectDB();
-  }
-  return db;
+  return await connectToDatabase();
 }
 
 module.exports = {
-  connectDB,
   getDB,
 };
 
